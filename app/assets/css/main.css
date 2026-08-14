@@ -1,0 +1,385 @@
+@import 'tailwindcss';
+
+/*
+ * erratas is a terminal, not a dashboard.
+ *
+ * The design commits to one idea: a log you read, rendered in a monospace face
+ * on near-black, with exactly one accent colour doing all the signalling. There
+ * is no border radius anywhere and no shadow anywhere — every edge is a hairline
+ * rule. Keep it that way; a rounded card in here reads as a different product.
+ *
+ * The palette is deliberately narrow and the greys are load-bearing: they encode
+ * *rank*, not decoration. Text steps down 5 → 8 → 5 → 3 as it becomes less
+ * important, and a value that jumps a step reads as a mistake.
+ */
+@theme {
+  --font-mono: 'IBM Plex Mono', Menlo, Consolas, monospace;
+  --default-font-family: var(--font-mono);
+
+  /* Surfaces. `raised` is the only fill — panels, code blocks, zebra stripes. */
+  --color-ground: #060606;
+  --color-raised: #0d0d0d;
+  --color-hover-row: #0b0b0b;
+  --color-hover-menu: #161616;
+  --color-rule: #1c1c1c;
+
+  /* Text, brightest to faintest. */
+  --color-ink: #f5f5f5;
+  --color-ink-soft: #c9c9c9;
+  --color-ink-muted: #8a8a8a;
+  --color-ink-dim: #555555;
+  --color-ink-faint: #3a3a3a;
+  --color-ink-disabled: #2c2c2c;
+
+  /* The single accent: active state, links, anything the reader can act on. */
+  --color-accent: #d4ff4f;
+
+  /* Severity. Used for the level dot and for destructive actions. */
+  --color-level-error: #ff6459;
+  --color-level-warning: #ffb224;
+  --color-level-info: #6ea8ff;
+
+  /*
+   * The type ramp is unusually tight — 11px to 13px — because everything on
+   * screen is data of roughly equal weight. Size separates roles, not
+   * importance; colour does importance.
+   */
+  --text-brand: 16px;
+  --text-body: 13px;
+  --text-row: 12.5px;
+  --text-meta: 12px;
+  --text-note: 11.5px;
+  --text-label: 11px;
+}
+
+/*
+ * Element defaults live in `@layer base` and the primitives below in
+ * `@layer components`, rather than unlayered, and that is load-bearing rather
+ * than tidiness. Unlayered CSS outranks every `@layer`, Tailwind's utilities
+ * included — so an unlayered `a { color: accent }` silently beat `text-ink-muted`
+ * on a link, and an unlayered `.field { padding: 6px 0 }` silently beat the
+ * `py-[2px]` that four compact inputs in the setup panel ask for. Both read as
+ * a utility that "does nothing", which is the same failure mode as a v3-style
+ * `!text-meta`. Layering restores the expected order: a utility at the call site
+ * overrides the primitive.
+ */
+@layer base {
+  html {
+    background: var(--color-ground);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-ground);
+  }
+
+  input::placeholder {
+    color: var(--color-ink-dim);
+  }
+
+  a {
+    color: var(--color-accent);
+  }
+
+  a:hover {
+    color: var(--color-ink);
+  }
+
+  /*
+   * One focus ring for the whole app, because there are ~25 buttons and links
+   * here and per-component focus styling is how half of them end up with none.
+   * A hairline outline rather than a ring: the design has no radius and no
+   * shadow, so the accent-coloured 1px edge is the only shape that belongs, and
+   * the offset keeps it clear of the hairline borders it often sits inside.
+   */
+  :focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /*
+   * Inputs in this design are a baseline, not a box: transparent, with a single
+   * hairline underneath that turns accent on focus. Declared once here because
+   * every form control in the app wants it and repeating the utility chain per
+   * field is where the design starts drifting.
+   *
+   * The search bar is the one deliberate exception and is not a `.field`: it is a
+   * compound control — icon, input, clear button — and the border is what makes the
+   * three read as one thing. A bare baseline under the app's primary control would
+   * also be the hardest thing on the page to find.
+   */
+  .field {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-rule);
+    color: var(--color-ink);
+    font-family: inherit;
+    padding: 6px 0;
+    outline: none;
+  }
+
+  .field:focus {
+    border-bottom-color: var(--color-accent);
+  }
+
+  /*
+   * The same argument as `.field`, for the other half of the controls.
+   *
+   * Every button in this app is text — or an icon beside text — on nothing at
+   * all; there is no filled or outlined button anywhere. That was being spelled
+   * out as `border-none bg-transparent p-0 font-[inherit] cursor-pointer` at
+   * twenty-three call sites, and the drift it invited was measurable: the gap
+   * between an icon and its label had been written three different ways (5px,
+   * 6px and 7px) for one visual relationship. The gap lives here now, so there
+   * is one answer to it.
+   *
+   * `inline-flex` unconditionally, including for text-only buttons, so that a
+   * label gaining an icon later needs no layout classes and cannot pick a fourth
+   * gap.
+   */
+  .action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .action:disabled {
+    cursor: default;
+  }
+
+  /*
+   * Section headers: `install`, `stacks`, `project`, `test event`.
+   *
+   * Letterspaced small caps are the only place this design shouts, and they mark
+   * a section rather than a control — which is why they are `ink-dim` and never
+   * accent. Named because the four-utility chain had already been copied five
+   * times and one copy (`stack trace`) had drifted out of it entirely.
+   */
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-label);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-dim);
+  }
+}
+
+/* Nuxt's page transition — a fade only. Movement would fight the fixed grid. */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 120ms ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+/*
+ * The rest of the app's motion, as three named transitions rather than per-component
+ * durations. Three, because there turn out to be exactly three things that move here,
+ * and giving each one name is what stops the fourth from inventing a fourth timing.
+ *
+ * The house rule is the one stated above for pages: fade, don't travel. A terminal
+ * does not slide. `row-move` is the single deliberate exception, and it earns it —
+ * see below.
+ */
+
+/*
+ * `fade` — anything that appears over or beside the layout without displacing it:
+ * a menu, a notice, an error line. 120ms matches the page fade, so a menu opening
+ * and a route changing feel like the same app.
+ */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 120ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/*
+ * `reveal` — disclosure: an issue's detail panel, the setup panel. These change the
+ * height of the page, so a fade alone would leave everything below them jumping while
+ * the panel faded in, which reads as a broken layout rather than a slow one.
+ *
+ * The height is animated by interpolating `grid-template-rows` between `0fr` and
+ * `1fr`. The usual alternative is a `max-height` guess, and it is a lie: the tallest
+ * thing revealed here is a stack trace of unknown length, so any fixed ceiling either
+ * clips it or makes short panels animate a height they never reach. This way the
+ * browser animates the real height and nothing has to be measured.
+ *
+ * **It requires three elements, and the middle one has to stay empty of styling:**
+ *
+ *   <div class="reveal">   <- the grid, the thing that transitions
+ *     <div>                <- clipped; no padding, no margin, no border
+ *       <div class="p-…">  <- everything visual
+ *
+ * A `0fr` track is `minmax(auto, 0fr)`, so it cannot shrink below its item's minimum
+ * contribution. `min-height: 0` plus `overflow: hidden` takes the *content's*
+ * contribution to zero — but padding, margin and borders on that same element still
+ * count, so styling the middle div leaves the panel with a floor it snaps across
+ * (20px of padding either side measured as a 40px jump). Hence the bare div, which
+ * looks redundant and is not.
+ *
+ * `overflow: hidden` applies only while the transition runs. Leaving it on
+ * permanently would clip whatever a future panel puts near its edge.
+ */
+.reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+/*
+ * `min-height: 0` is what lets the track animate to `0fr`, as above. `min-width: 0`
+ * is the same rule on the other axis and is needed for a different reason: a grid
+ * item's automatic minimum size also refuses to shrink below its *content's*
+ * min-content width, so anything wide and unbreakable inside the panel — a DSN, a
+ * line of a code snippet — sized this element instead of the column, and the whole
+ * page scrolled sideways on a phone. Desktop never shows it, because at 720px the
+ * content fits.
+ */
+.reveal > * {
+  min-height: 0;
+  min-width: 0;
+}
+
+.reveal-enter-active,
+.reveal-leave-active {
+  transition:
+    grid-template-rows 160ms ease,
+    opacity 160ms ease;
+}
+
+.reveal-enter-active > *,
+.reveal-leave-active > * {
+  overflow: hidden;
+}
+
+.reveal-enter-from,
+.reveal-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/*
+ * `row` — the issue list, which is the one part of this app that changes without
+ * anybody touching it. Realtime patches rows in place and the list sorts by
+ * `lastSeen`, so an arriving event can reorder it: `row-move` is the exception to
+ * "fade, don't travel", because a row sliding to its new position is the difference
+ * between a reader seeing that something moved and a reader wondering whether they
+ * misread it.
+ *
+ * There is deliberately no leave transition. Paging swaps every row at once, and
+ * animating ten departures means ten elements still occupying space while ten
+ * arrivals push in below them — the list visibly doubles in height. The usual fix is
+ * `position: absolute` on the leaving rows, which needs widths pinned by hand in a
+ * layout built from hairline-bordered blocks. Removing instantly and letting the
+ * survivors slide up costs nothing and breaks nothing.
+ */
+.row-enter-active {
+  transition: opacity 150ms ease;
+}
+
+.row-enter-from {
+  opacity: 0;
+}
+
+.row-move {
+  transition: transform 180ms ease;
+}
+
+/*
+ * `trace` — the flat line on a stack that has never reported.
+ *
+ * The only motion in the app that is not a transition: it runs continuously, on a
+ * screen whose entire content is "nothing is happening". That is exactly why it is
+ * here — a stack waiting for its first event and a stack whose stream has died look
+ * identical when nothing moves, and the sweep is what separates listening from dead.
+ * It earns the exception the same way `row-move` does.
+ *
+ * The dashes are the empty window and the axis labels underneath say how wide it is,
+ * so the line reads as a chart with no data rather than as an ornament. `left` rather
+ * than a transform, so the travel is the panel's width at any size.
+ */
+.trace {
+  position: relative;
+  height: 84px;
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+  overflow: hidden;
+}
+
+.trace-line {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-50%);
+  background-image: linear-gradient(to right, var(--color-ink-faint) 0 4px, transparent 4px 10px);
+  background-size: 10px 1px;
+}
+
+.trace-sweep {
+  position: absolute;
+  top: 42%;
+  left: -80px;
+  width: 80px;
+  height: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(to right, transparent, var(--color-accent) 70%, var(--color-accent));
+  animation: trace-sweep 3.4s linear infinite;
+}
+
+@keyframes trace-sweep {
+  to {
+    left: 100%;
+  }
+}
+
+/*
+ * Motion here is explanatory, never load-bearing: every one of these transitions can
+ * be removed and the app still says exactly the same thing, which is the test for
+ * whether honouring this preference is safe.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active,
+  .fade-enter-active,
+  .fade-leave-active,
+  .reveal-enter-active,
+  .reveal-leave-active,
+  .row-enter-active,
+  .row-move {
+    transition: none;
+  }
+
+  /* The trace runs continuously rather than on a trigger, so it is parked on the
+     line instead of left at its offscreen start. */
+  .trace-sweep {
+    animation: none;
+    left: 45%;
+  }
+}

@@ -1,0 +1,51 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Node dependencies
+node_modules
+
+# Built SDK bundles — published to npm, never committed
+packages/*/dist
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+docker/pocketbase/data
+# The hooks directory is mostly the vendored schema generator (npm run
+# pb:install-hooks), so it is ignored wholesale and our own files are added back
+# by name. Every hand-written helper needs a line here — a shared `.js` that is
+# require()'d by a hook but never committed removes its checks on a fresh clone
+# while leaving the app apparently working.
+docker/pocketbase/hooks/*
+!docker/pocketbase/hooks/*.pb.js
+!docker/pocketbase/hooks/ownership.js
+!docker/pocketbase/hooks/ingest.js
+!docker/pocketbase/hooks/ingest.test.ts
+docker/pocketbase/hooks/main.pb.js
+docker/pocketbase/public/*
+!docker/pocketbase/public/.gitkeep
+
+# pb:backup output
+docker/backups
+
+# Generated PocketBase TS/Zod schema (regenerated on collection change)
+shared/pocketbase/*.ts
+
+# Scratch dir used by scripts/install-pb-hooks.ts
+/temp
