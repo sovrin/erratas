@@ -1,0 +1,18 @@
+{
+  "exposeEndpoint": true,
+  "endpointPath": "/schema",
+  "secureEndpoint": false,
+
+  "tsSchema": {
+    "generateFile": true,
+    "includeDocs": true,
+    "includeSystemCollections": false,
+    "outputPath": "./pb_static/tsSchema.ts"
+  },
+
+  "zodSchema": {
+    "generateFile": true,
+    "includeSystemCollections": false,
+    "outputPath": "./pb_static/zodSchema.ts"
+  }
+}

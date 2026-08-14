@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    // ES2020 is the floor the browser transports need (Blob, fetch, optional
+    // chaining) and is low enough that consumers do not have to down-level it.
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    // Only the tests import JSON (package.json, to assert the version has not
+    // drifted). Nothing under src/ may — see src/version.ts.
+    "resolveJsonModule": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": []
+  },
+  "include": ["src", "test", "build.config.ts"]
+}

@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>erratas — debug reporter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #060606;
+        --raised: #0d0d0d;
+        --rule: #1c1c1c;
+        --ink: #f5f5f5;
+        --ink-muted: #8a8a8a;
+        --ink-dim: #555555;
+        --ink-faint: #3a3a3a;
+        --accent: #d4ff4f;
+        --error: #ff6459;
+        --warning: #ffb224;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: 'IBM Plex Mono', Menlo, Consolas, monospace;
+        font-size: 13px;
+        display: flex;
+        justify-content: center;
+      }
+
+      main {
+        width: 100%;
+        max-width: 860px;
+        padding: 56px 24px 80px;
+      }
+
+      ::selection {
+        background: var(--accent);
+        color: var(--ground);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .mark {
+        width: 10px;
+        height: 10px;
+        background: var(--accent);
+      }
+      .brand span {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .brand em {
+        font-style: normal;
+        color: var(--ink-dim);
+        font-size: 13px;
+      }
+
+      .note {
+        margin-top: 10px;
+        color: var(--ink-dim);
+        font-size: 12.5px;
+        line-height: 1.7;
+      }
+
+      section {
+        margin-top: 32px;
+        border: 1px solid var(--rule);
+      }
+      .pad {
+        padding: 18px 20px;
+      }
+      .pad + .pad {
+        border-top: 1px solid var(--rule);
+      }
+
+      .label {
+        font-size: 11px;
+        color: var(--ink-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 14px;
+      }
+
+      input[type='text'] {
+        width: 100%;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--rule);
+        color: var(--ink);
+        font-family: inherit;
+        font-size: 13px;
+        padding: 6px 0;
+        outline: none;
+      }
+      input[type='text']:focus {
+        border-bottom-color: var(--accent);
+      }
+      input::placeholder {
+        color: var(--ink-dim);
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        flex-wrap: wrap;
+      }
+
+      button {
+        background: none;
+        border: none;
+        font-family: inherit;
+        font-size: 12.5px;
+        color: var(--accent);
+        cursor: pointer;
+        padding: 0;
+      }
+      button:hover {
+        color: var(--ink);
+      }
+      button:disabled {
+        color: var(--ink-faint);
+        cursor: default;
+      }
+      button.quiet {
+        color: var(--ink-muted);
+      }
+
+      .status {
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--ink-dim);
+        line-height: 1.7;
+      }
+      .status b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .status .bad {
+        color: var(--error);
+      }
+
+      .triggers {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 10px 20px;
+      }
+      .triggers button {
+        text-align: left;
+      }
+      .triggers small {
+        display: block;
+        color: var(--ink-faint);
+        font-size: 11.5px;
+        margin-top: 2px;
+      }
+
+      .entry {
+        border-top: 1px solid var(--rule);
+        padding: 10px 0;
+      }
+      .entry:first-child {
+        border-top: none;
+      }
+      .entry-head {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        font-size: 12px;
+      }
+      .entry-head .code {
+        width: 44px;
+        flex-shrink: 0;
+      }
+      .ok {
+        color: var(--accent);
+      }
+      .bad {
+        color: var(--error);
+      }
+      .pending {
+        color: var(--warning);
+      }
+      .entry-head .title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--ink);
+      }
+      .entry-head .via {
+        color: var(--ink-faint);
+        flex-shrink: 0;
+      }
+      .entry pre {
+        margin: 8px 0 0;
+        background: var(--raised);
+        padding: 12px;
+        font-size: 11.5px;
+        color: var(--ink-muted);
+        overflow-x: auto;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .entry .url {
+        color: var(--ink-dim);
+        font-size: 11.5px;
+        margin-top: 6px;
+        word-break: break-all;
+      }
+      details summary {
+        cursor: pointer;
+        color: var(--ink-dim);
+        font-size: 11.5px;
+        margin-top: 6px;
+      }
+      details summary:hover {
+        color: var(--ink);
+      }
+      .empty {
+        color: var(--ink-dim);
+        font-size: 12.5px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <div class="mark"></div>
+        <span>erratas</span>
+        <em>debug reporter</em>
+      </div>
+
+      <p class="note">
+        A throwaway application that reports to an erratas instance, served on its own origin so
+        every request is genuinely cross-origin. Everything the SDK puts on the wire is shown below,
+        verbatim. A <b>200</b> means the event was filed — open the dashboard to see the issue.
+      </p>
+
+      <section>
+        <div class="pad">
+          <div class="label">dsn</div>
+          <input
+            id="dsn"
+            type="text"
+            spellcheck="false"
+            placeholder="https://8f2ac1e9b7d4@localhost:3000/s4wbg5o8gz0fwqu"
+          />
+          <div class="row" style="margin-top: 14px">
+            <button id="connect">start reporting</button>
+            <button id="reset" class="quiet">reset</button>
+          </div>
+          <div class="status" id="status">
+            Paste a DSN from the dashboard's setup panel — copy button next to a stack.
+          </div>
+        </div>
+
+        <div class="pad">
+          <div class="label">trigger</div>
+          <div class="triggers" id="triggers"></div>
+        </div>
+
+        <div class="pad">
+          <div class="label">
+            wire — <span id="count">0</span> request(s)
+            <button id="clear" class="quiet" style="float: right; font-size: 11px">clear</button>
+          </div>
+          <div id="log"><div class="empty">Nothing sent yet.</div></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module">
+      import { captureException, captureMessage, close, flush, init, parseDsn } from '/sdk.mjs'
+
+      const $ = (id) => document.getElementById(id)
+      const statusEl = $('status')
+      const logEl = $('log')
+      const countEl = $('count')
+
+      let sent = 0
+
+      // ---- wire tap ---------------------------------------------------------
+      //
+      // The SDK has no hook for "show me what you sent", and adding one would be
+      // API surface that exists only for this page. Patching the two transports
+      // it can use is both simpler and more honest: it shows what actually left
+      // the browser, including anything a future SDK version starts sending.
+
+      const realFetch = window.fetch.bind(window)
+      const realBeacon = navigator.sendBeacon ? navigator.sendBeacon.bind(navigator) : null
+
+      const isReport = (url) => String(url).includes('/store/')
+
+      window.fetch = (input, options = {}) => {
+        const url = typeof input === 'string' ? input : input.url
+        if (!isReport(url)) return realFetch(input, options)
+
+        const entry = record('fetch', url, options.body)
+        return realFetch(input, options).then(
+          (res) => {
+            settle(entry, res.status)
+            return res
+          },
+          (err) => {
+            // A network-level failure, which is what a missing ingest endpoint
+            // on another host looks like — as opposed to a 404, which means
+            // something answered.
+            settle(entry, 0, String(err && err.message ? err.message : err))
+            throw err
+          },
+        )
+      }
+
+      if (realBeacon) {
+        navigator.sendBeacon = (url, body) => {
+          if (!isReport(url)) return realBeacon(url, body)
+          const entry = record('beacon', url, body)
+          const queued = realBeacon(url, body)
+          // sendBeacon reports only whether the browser accepted the payload for
+          // delivery. The response is unobservable by design, so there is no
+          // status to show — the page is usually gone by the time it arrives.
+          settle(entry, queued ? null : 0, queued ? 'queued by the browser' : 'browser refused it')
+          return queued
+        }
+      }
+
+      function record(via, url, body) {
+        sent += 1
+        countEl.textContent = String(sent)
+        if (logEl.querySelector('.empty')) logEl.innerHTML = ''
+
+        const el = document.createElement('div')
+        el.className = 'entry'
+        el.innerHTML = `
+          <div class="entry-head">
+            <span class="code pending">···</span>
+            <span class="title"></span>
+            <span class="via"></span>
+          </div>
+          <div class="url"></div>
+          <details><summary>payload</summary><pre></pre></details>`
+
+        el.querySelector('.via').textContent = via
+        el.querySelector('.url').textContent = url
+        logEl.prepend(el)
+
+        const entry = { head: el, payload: el.querySelector('pre') }
+        const show = (text) => {
+          entry.payload.textContent = pretty(text)
+          el.querySelector('.title').textContent = describe(text)
+        }
+
+        // sendBeacon takes a Blob, whose contents are only readable
+        // asynchronously — so the row appears immediately and fills in.
+        if (typeof body === 'string') show(body)
+        else if (body instanceof Blob) {
+          entry.payload.textContent = '(decoding…)'
+          body.text().then(show)
+        } else {
+          entry.payload.textContent = '(unreadable body)'
+        }
+
+        return entry
+      }
+
+      function settle(entry, status, detail) {
+        const code = entry.head.querySelector('.code')
+        if (status === null) {
+          code.textContent = '—'
+          code.className = 'code ok'
+        } else if (status === 0) {
+          code.textContent = 'ERR'
+          code.className = 'code bad'
+        } else {
+          code.textContent = String(status)
+          code.className = `code ${status >= 200 && status < 300 ? 'ok' : 'bad'}`
+        }
+        if (detail) entry.head.querySelector('.via').textContent = detail
+      }
+
+      const pretty = (text) => {
+        try {
+          return JSON.stringify(JSON.parse(text), null, 2)
+        } catch {
+          return text
+        }
+      }
+
+      const describe = (text) => {
+        try {
+          const event = JSON.parse(text)
+          const what = event.exception
+            ? `${event.exception.type}: ${event.exception.value}`
+            : (event.message ?? '(no message)')
+          return `${event.level} · ${what}`
+        } catch {
+          return '(unparseable)'
+        }
+      }
+
+      // ---- connecting -------------------------------------------------------
+
+      const dsnInput = $('dsn')
+      dsnInput.value = localStorage.getItem('erratas-debug-dsn') ?? ''
+
+      let running = false
+
+      $('connect').addEventListener('click', () => {
+        const dsn = dsnInput.value.trim()
+        if (!dsn) return say('Enter a DSN first.', true)
+
+        let parsed
+        try {
+          parsed = parseDsn(dsn)
+        } catch (err) {
+          return say(`That DSN did not parse — ${err.message}`, true)
+        }
+
+        localStorage.setItem('erratas-debug-dsn', dsn)
+
+        // `init` is intentionally impossible to make throw, so a successful call
+        // proves nothing on its own — parseDsn above is what actually validated
+        // the input.
+        init({
+          dsn,
+          environment: 'debug',
+          release: 'debug-reporter',
+          tags: { source: 'debug-reporter' },
+          debug: true,
+        })
+
+        running = true
+        say(
+          `Reporting to <b>${parsed.host}${parsed.port ? ':' + parsed.port : ''}</b> ` +
+            `as stack <b>${parsed.stackId}</b> with key <b>${parsed.publicKey}</b>. ` +
+            `Uncaught errors and unhandled rejections are captured automatically.`,
+        )
+      })
+
+      $('reset').addEventListener('click', () => {
+        close()
+        running = false
+        say('Stopped. Nothing is being reported.')
+      })
+
+      $('clear').addEventListener('click', () => {
+        sent = 0
+        countEl.textContent = '0'
+        logEl.innerHTML = '<div class="empty">Nothing sent yet.</div>'
+      })
+
+      function say(html, bad = false) {
+        statusEl.innerHTML = bad ? `<span class="bad">${html}</span>` : html
+      }
+
+      // ---- triggers ---------------------------------------------------------
+
+      const TRIGGERS = [
+        {
+          label: 'uncaught TypeError',
+          hint: 'window error handler',
+          run: () => {
+            setTimeout(() => {
+              const nothing = null
+              nothing.someProperty.deeper()
+            })
+          },
+        },
+        {
+          label: 'unhandled rejection',
+          hint: 'a promise nobody caught',
+          run: () => {
+            Promise.reject(new Error('the request never came back'))
+          },
+        },
+        {
+          label: 'captureException',
+          hint: 'an error you caught yourself',
+          run: () => {
+            try {
+              JSON.parse('{ not json')
+            } catch (err) {
+              captureException(err, { tags: { where: 'manual' } })
+            }
+          },
+        },
+        {
+          label: 'captureMessage',
+          hint: 'level info, no exception',
+          run: () => captureMessage('cache rebuilt in 412ms', { level: 'info' }),
+        },
+        {
+          label: 'throw a string',
+          hint: 'not every throw is an Error',
+          run: () => {
+            setTimeout(() => {
+              throw 'nope'
+            })
+          },
+        },
+        {
+          label: 'throw a plain object',
+          hint: 'serialised, not dropped',
+          run: () => {
+            Promise.reject({ code: 500, detail: 'gateway said no' })
+          },
+        },
+        {
+          label: 'deep stack',
+          hint: 'checks frame parsing',
+          run: () => {
+            const recurse = (n) => (n === 0 ? JSON.parse('{{') : recurse(n - 1))
+            try {
+              recurse(12)
+            } catch (err) {
+              captureException(err)
+            }
+          },
+        },
+        {
+          label: '20× the same error',
+          hint: 'expect 1 request — deduped',
+          run: () => {
+            for (let i = 0; i < 20; i++) {
+              const err = new Error('a loop that keeps failing')
+              err.stack = 'Error: a loop that keeps failing\n    at loop (debug.js:1:1)'
+              captureException(err)
+            }
+          },
+        },
+        {
+          // The cap is 30 per rolling minute across the whole session, not per
+          // click — so this sends 30 minus whatever already went out in the last
+          // minute. Clicking it twice in a row correctly sends nothing the
+          // second time.
+          label: '50× distinct errors',
+          hint: 'capped at 30 per rolling minute',
+          run: () => {
+            for (let i = 0; i < 50; i++) captureException(new Error(`distinct failure ${i}`))
+          },
+        },
+        {
+          label: 'flush now',
+          hint: 'send the queue immediately',
+          run: () => flush(),
+        },
+      ]
+
+      const triggersEl = $('triggers')
+      for (const trigger of TRIGGERS) {
+        const button = document.createElement('button')
+        button.innerHTML = `${trigger.label}<small>${trigger.hint}</small>`
+        button.addEventListener('click', () => {
+          if (!running) return say('Start reporting first — the SDK is not running.', true)
+          trigger.run()
+        })
+        triggersEl.append(button)
+      }
+    </script>
+  </body>
+</html>

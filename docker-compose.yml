@@ -1,0 +1,22 @@
+name: erratas
+
+include:
+  - docker/docker-compose.yml
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: erratas
+    container_name: erratas
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      NUXT_POCKETBASE_URL: http://database:8090
+    depends_on:
+      - database
