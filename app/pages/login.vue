@@ -1,8 +1,21 @@
 <script setup lang="ts">
 import { ArrowRight } from 'lucide-vue-next'
 
+import { safeRedirectPath } from '#shared/domain/safeRedirect'
+
 const { signIn, signUp, isLoggedIn } = useAuth()
 const config = useRuntimeConfig()
+const route = useRoute()
+
+/**
+ * Where to go once signed in — the page the reader actually asked for.
+ *
+ * Re-validated here rather than trusted from the middleware that set it. Anyone
+ * can type `?next=` into this page's URL directly, so the guard has to live at the
+ * point of use; checking only where the query is produced would stop applying the
+ * moment there is a second way to arrive.
+ */
+const destination = computed(() => safeRedirectPath(route.query.next))
 
 const email = ref('')
 const password = ref('')
@@ -12,7 +25,7 @@ const busy = ref(false)
 // Someone already signed in has no business on this page — most often arrived
 // at by a bookmark or the back button.
 watchEffect(() => {
-  if (isLoggedIn.value) navigateTo('/')
+  if (isLoggedIn.value) navigateTo(destination.value)
 })
 
 async function submit() {
@@ -26,7 +39,7 @@ async function submit() {
   error.value = null
   try {
     await signIn(email.value.trim(), password.value)
-    await navigateTo('/')
+    await navigateTo(destination.value)
   } catch {
     // Deliberately not "no such account" versus "wrong password": the
     // difference tells an unauthenticated caller which addresses are
@@ -44,7 +57,7 @@ async function register() {
   error.value = null
   try {
     await signUp(email.value.trim(), password.value, email.value.trim())
-    await navigateTo('/')
+    await navigateTo(destination.value)
   } catch {
     error.value = 'could not create that account'
   } finally {

@@ -163,6 +163,18 @@ export function createPocketBaseIssueRepository(pb: PocketBase): IssueRepository
       return records.items.map(toIssue)
     },
 
+    async get(id: string): Promise<Issue | null> {
+      try {
+        return toIssue(await pb.collection('issues').getOne(id))
+      } catch {
+        // Every failure collapses to null on purpose. A 404 for a deleted issue,
+        // a 404 for somebody else's, and a dropped connection are all "there is
+        // nothing to show you here" as far as the page is concerned, and telling
+        // them apart would leak which ids exist.
+        return null
+      }
+    },
+
     async setStatus(id: string, status: IssueStatus): Promise<Issue> {
       return toIssue(await pb.collection('issues').update(id, { status }))
     },

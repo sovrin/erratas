@@ -12,11 +12,39 @@ describe('snippetFor', () => {
     expect(snippet).toContain(DSN)
   })
 
-  it.each(['nuxt', 'node', 'TypeScript', 'react'])('gives %s the npm snippet', (platform) => {
-    const snippet = snippetFor(platform, DSN)
+  it.each(['nuxt', 'TypeScript', 'react', 'vue'])(
+    'gives %s the browser snippet, with symbolication offered',
+    (platform) => {
+      const snippet = snippetFor(platform, DSN)
 
-    expect(snippet).toContain('npm install @erratas/sdk')
-    expect(snippet).toContain(`init({ dsn: "${DSN}" })`)
+      expect(snippet).toContain('npm install @erratas/sdk')
+      expect(snippet).toContain(`dsn: "${DSN}"`)
+      // Commented, not omitted: a minified frame is unreadable and this panel is
+      // the only place a reader learns there is an answer. Uncommented it would
+      // point at a route they have not mounted.
+      expect(snippet).toContain('// symbolicate: "/__erratas/symbolicate"')
+      expect(snippet).not.toContain('withSourceContext')
+    },
+  )
+
+  it.each(['node', 'node 24', 'bun', 'deno', 'express'])(
+    'gives %s the server snippet, with source context switched on',
+    (platform) => {
+      const snippet = snippetFor(platform, DSN)
+
+      expect(snippet).toContain(`dsn: "${DSN}"`)
+      // Uncommented here, because it needs nothing mounted — the file or the
+      // build's map is on the same disk as the code that threw.
+      expect(snippet).toContain('beforeSend: withSourceContext()')
+      expect(snippet).toContain('@erratas/sdk/node')
+    },
+  )
+
+  // `node` is in both platform lists, and the server generator is registered
+  // first on purpose. Reverse the order and every Node stack is handed browser
+  // instructions that cannot read a source map.
+  it('prefers the server snippet over the browser one for node', () => {
+    expect(snippetFor('node', DSN)).toContain('withSourceContext')
   })
 
   // A stack whose platform nobody recognised still needs a usable instruction —

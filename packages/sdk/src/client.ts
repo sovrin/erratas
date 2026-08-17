@@ -1,5 +1,6 @@
 import { ingestUrl, parseDsn } from './dsn'
 import { buildEvent, dedupeKey, toException } from './event'
+import { symbolicateEvent, SYMBOLICATE_TIMEOUT_MS, type FrameCache } from './symbolicate'
 import { defaultSender, EventQueue, type Sender } from './transport'
 import type { CaptureOptions, ErratasEvent, InitOptions } from './types'
 
@@ -80,12 +81,21 @@ export function createClient(options: InitOptions, sender: Sender = defaultSende
     return last !== undefined && now - last <= DEDUPE_WINDOW_MS
   }
 
-  function capture(event: ErratasEvent): void {
-    if (isDuplicate(event)) {
-      debug('duplicate event dropped')
-      return
-    }
+  /**
+   * Events waiting on symbolication.
+   *
+   * They are not in the queue yet, so `flush` has to drain them itself or a page
+   * unloading mid-request would lose them outright — the one thing worse than an
+   * event with no source is no event.
+   */
+  const held = new Set<() => void>()
+  const frameCache: FrameCache = new Map()
 
+  function enqueue(event: ErratasEvent): void {
+    // beforeSend runs last, immediately before the event is queued, so that a
+    // host app scrubbing secrets sees the *final* payload — source lines
+    // included. Redacting a value from the fields while leaving it visible in an
+    // attached line of source would be a scrubber that quietly does not work.
     let finished: ErratasEvent | null = event
     if (options.beforeSend) {
       try {
@@ -101,6 +111,50 @@ export function createClient(options: InitOptions, sender: Sender = defaultSende
     if (!finished) return
 
     queue.add(finished)
+  }
+
+  function capture(event: ErratasEvent): void {
+    if (isDuplicate(event)) {
+      debug('duplicate event dropped')
+      return
+    }
+
+    // Without a symbolicate endpoint this stays exactly what it was: fully
+    // synchronous, straight into the queue.
+    if (!options.symbolicate) {
+      enqueue(event)
+      return
+    }
+
+    // With one, the event waits — but for a bounded time, and never in a way the
+    // host application can feel. Waiting rather than patching the event after it
+    // is queued is deliberate: symbolication rewrites the frame's file and
+    // function, grouping fingerprints on exactly those, so an event that raced
+    // the flush and went out unsymbolicated would land as a *second issue* for
+    // the same bug. Deterministic-or-plain beats sometimes-enriched.
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const release = () => {
+      if (settled) return
+      settled = true
+      held.delete(release)
+      if (timer !== null) clearTimeout(timer)
+      enqueue(event)
+    }
+
+    held.add(release)
+    timer = setTimeout(release, SYMBOLICATE_TIMEOUT_MS)
+    // Node would otherwise hold a CLI open waiting on this.
+    ;(timer as { unref?: () => void }).unref?.()
+
+    void symbolicateEvent(event, options.symbolicate, frameCache).then(release, release)
+  }
+
+  /** Releases anything waiting on source, then drains the queue. */
+  function flushAll(useBeacon: boolean): void {
+    for (const release of [...held]) release()
+    queue.flush(useBeacon)
   }
 
   const base = {
@@ -130,11 +184,11 @@ export function createClient(options: InitOptions, sender: Sender = defaultSende
     },
 
     flush(useBeacon = false) {
-      queue.flush(useBeacon)
+      flushAll(useBeacon)
     },
 
     close() {
-      queue.flush(true)
+      flushAll(true)
     },
   }
 }

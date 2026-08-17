@@ -388,3 +388,54 @@ describe('asHashSet', () => {
     expect(result.set).toHaveLength(2)
   })
 })
+
+/**
+ * Content hashes are the reason this exists. A bundle's filename changes on every
+ * deploy while the code in it does not, and the fingerprint is built from that
+ * filename — so anything left un-stripped here re-opens every issue in a project
+ * at each release.
+ */
+describe('normaliseFilename', () => {
+  it.each([
+    // Vite, Next and rollup: dash-separated.
+    ['/assets/main-a1b2c3d4.js', '/assets/main.js'],
+    // webpack and tsc: dot-separated. This was the gap.
+    ['/assets/main.a1b2c3d4e5f6.js', '/assets/main.js'],
+    ['/static/chunks/main-app-0123456789ab.js', '/static/chunks/main-app.js'],
+    // Query strings and fragments are per-request noise.
+    ['/app.js?v=42', '/app.js'],
+    ['/app.js#frag', '/app.js'],
+    // A trailing position is stripped before the hash pattern is tried, or the
+    // pattern would never match.
+    ['/assets/main-a1b2c3d4.js:1:48213', '/assets/main.js'],
+    ['/assets/main.a1b2c3d4e5f6.js:1:2', '/assets/main.js'],
+  ])('strips %s', (input, expected) => {
+    expect(ingest.normaliseFilename(input)).toBe(expected)
+  })
+
+  it.each([
+    // Words, not hashes. Stripping these would merge unrelated files into one
+    // issue, which loses information silently — worse than leaving them split.
+    ['/src/main-controller.js'],
+    ['/src/user.service.js'],
+    // Too short to be a content hash.
+    ['/src/main-abc123.js'],
+    // Original source, which is what a symbolicated frame names.
+    ['src/UserRepository.ts'],
+  ])('leaves %s alone', (input) => {
+    expect(ingest.normaliseFilename(input)).toBe(input)
+  })
+
+  it('gives two hashes of the same bundle one fingerprint', () => {
+    // The whole point: yesterday's deploy and today's must group together.
+    const frames = (file: string) => [{ func: 'create', loc: file }]
+    const before = ingest.fingerprintOf({
+      exception: { type: 'TypeError', value: 'x', frames: frames('/assets/app.1111aaaa.js:1:5') },
+    })
+    const after = ingest.fingerprintOf({
+      exception: { type: 'TypeError', value: 'x', frames: frames('/assets/app.2222bbbb.js:9:9') },
+    })
+
+    expect(before).toBe(after)
+  })
+})

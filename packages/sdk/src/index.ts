@@ -8,6 +8,7 @@ export type {
   ExceptionPayload,
   InitOptions,
   Level,
+  SourceLine,
   StackFrame,
 } from './types'
 export { PAYLOAD_VERSION } from './types'

@@ -1,6 +1,6 @@
 import { useIntervalFn } from '@vueuse/core'
 
-import type { Issue, IssueStatus } from '#shared/domain/types'
+import type { Issue } from '#shared/domain/types'
 import {
   environmentsIn,
   selectIssues,
@@ -43,12 +43,20 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
   const loading = useState('issues-loading', () => false)
   const loadError = useState<string | null>('issues-error', () => null)
 
-  const status = ref<StatusSelection>('unresolved')
-  const stackId = ref<string | 'all'>('all')
-  const environment = ref<string | 'all'>('all')
-  const search = ref('')
-  const page = ref(1)
-  const expandedId = ref<string | null>(null)
+  /*
+   * Filters live in `useState`, not `ref`.
+   *
+   * Opening an issue is a route change now, which unmounts this page — and plain
+   * refs would be rebuilt on the way back, dropping the reader's filter, search
+   * and page number every time they looked at something. Triage is "open, read,
+   * back, next", so losing the list's position on every hop would make the list
+   * unusable in exactly the flow it exists for.
+   */
+  const status = useState<StatusSelection>('issues-status', () => 'unresolved')
+  const stackId = useState<string | 'all'>('issues-stack', () => 'all')
+  const environment = useState<string | 'all'>('issues-environment', () => 'all')
+  const search = useState('issues-search', () => '')
+  const page = useState('issues-page', () => 1)
 
   /**
    * Changes that have arrived but are not on screen yet, keyed by issue id.
@@ -65,8 +73,6 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
    */
   const pool = new Map<string, IssueChange>()
 
-  /** Pooled changes not yet applied, for the UI to explain the pause. */
-  const pendingCount = ref(0)
   /**
    * Whether the last attempt to open the stream succeeded.
    *
@@ -101,36 +107,27 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
 
   function receive(change: IssueChange) {
     pool.set(change.issue.id, change)
-    pendingCount.value = pool.size
   }
 
   /**
-   * Whether pooled changes are allowed on screen right now.
+   * Changes wait only while a fresh read is replacing the list wholesale.
    *
-   * Two reasons to hold them back, and the second is the one that earns its
-   * keep:
-   *
-   * `loading` — the list is being replaced wholesale by a fresh read, and
-   * patching rows into an array that is about to be thrown away is wasted work
-   * with a chance of briefly showing a half-merged list.
-   *
-   * `expandedId` — every destructive control in the app lives inside the
-   * expanded panel of a row (`IssueRow` only renders `IssueActions` when
-   * expanded, and delete is behind `useArmedAction` there). The list sorts by
-   * `lastSeen`, so a single arriving event reorders it — and a reorder while
-   * somebody has a row open, reading a stack trace with an armed delete button
-   * under their cursor, is how a click lands on the wrong issue. Holding while a
-   * row is open costs a stale count for as long as it is open and removes that
-   * whole class of misclick.
+   * There used to be a second condition here — hold everything while a row was
+   * expanded — because every destructive control lived inside that expanded row
+   * and the list reorders on `lastSeen`, so an arriving event could slide a
+   * different issue under an armed delete button. Moving the detail view to its
+   * own route removed the hazard rather than mitigating it: nothing on this list
+   * is destructive now, so a row shifting costs a wrong navigation and a press of
+   * Back. The pause, the pending count and the notice that explained them all
+   * went with it.
    */
-  const canFlush = computed(() => !loading.value && expandedId.value === null)
+  const canFlush = computed(() => !loading.value)
 
   function flush() {
     if (pool.size === 0) return
 
     const changes = [...pool.values()]
     pool.clear()
-    pendingCount.value = 0
     // `applyIssueChanges` returns the same array when nothing applied, so a
     // flush carrying only changes for a closed project does not re-render.
     issues.value = applyIssueChanges(issues.value, changes, projectId.value)
@@ -140,16 +137,10 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
     if (canFlush.value) flush()
   }, FLUSH_INTERVAL_MS)
 
-  // Collapsing a row is the reader saying they are done with it — the held
-  // changes should land then, not up to half a second later.
+  // A finished read is the moment anything pooled during it should land.
   watch(canFlush, (allowed) => {
     if (allowed) flush()
   })
-
-  /** Applies held changes now. Bound to the notice the pause puts on screen. */
-  function applyPending() {
-    flush()
-  }
 
   // Deliberately leaves `live` alone: tearing a subscription down on the way to
   // opening the next one is not an outage, and flipping the flag here would put
@@ -158,7 +149,6 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
     unsubscribe?.()
     unsubscribe = null
     pool.clear()
-    pendingCount.value = 0
   }
 
   /**
@@ -217,7 +207,6 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
   // orphaned on screen.
   watch([status, stackId, environment, search], () => {
     page.value = 1
-    expandedId.value = null
   })
 
   // A project switch resets everything, including the filters — carrying
@@ -229,7 +218,6 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
     environment.value = 'all'
     search.value = ''
     page.value = 1
-    expandedId.value = null
     await load()
   })
 
@@ -253,11 +241,13 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
     return summarise(issues.value, stackCount)
   }
 
-  function toggleExpanded(id: string) {
-    expandedId.value = expandedId.value === id ? null : id
-  }
-
-  /** Clicking a tag in an issue's detail narrows the search to it. */
+  /**
+   * Narrows the search to a tag, as the issue page's tag grid asks for.
+   *
+   * The issue page cannot do this itself — it has no search box — so it navigates
+   * here with the token in the URL and this applies it. Which also means a
+   * narrowed list has an address, the same way a single issue now does.
+   */
   function narrowBy(key: string, value: string) {
     search.value = appendSearchToken(search.value, key, value)
   }
@@ -268,44 +258,6 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
 
   function goToPage(next: number) {
     page.value = next
-    expandedId.value = null
-  }
-
-  /**
-   * Status changes are applied locally first.
-   *
-   * Resolving an issue usually removes it from the list the reader is looking
-   * at (the default tab is `unresolved`), and having that happen a round trip
-   * later reads as a missed click. On failure the row is restored.
-   */
-  async function setStatus(id: string, next: IssueStatus) {
-    const previous = issues.value.find((issue) => issue.id === id)?.status
-    if (!previous) return
-
-    patch(id, { status: next })
-    try {
-      await issueRepo.setStatus(id, next)
-    } catch {
-      patch(id, { status: previous })
-      loadError.value = 'Couldn’t update that issue'
-    }
-  }
-
-  async function remove(id: string) {
-    const snapshot = issues.value
-    issues.value = issues.value.filter((issue) => issue.id !== id)
-    if (expandedId.value === id) expandedId.value = null
-
-    try {
-      await issueRepo.remove(id)
-    } catch {
-      issues.value = snapshot
-      loadError.value = 'Couldn’t delete that issue'
-    }
-  }
-
-  function patch(id: string, changes: Partial<Issue>) {
-    issues.value = issues.value.map((issue) => (issue.id === id ? { ...issue, ...changes } : issue))
   }
 
   return {
@@ -317,20 +269,14 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
     environment,
     search,
     hasSearch,
-    expandedId,
     selection,
     currentPage,
     environments,
     live,
-    pendingCount,
-    applyPending,
     load,
     summary,
-    toggleExpanded,
     narrowBy,
     clearSearch,
     goToPage,
-    setStatus,
-    remove,
   }
 }

@@ -89,6 +89,19 @@ export interface IssueRepository {
    * above it has to know.
    */
   listForProject(projectId: string): Promise<Issue[]>
+  /**
+   * One issue, by id, or null when there is no such issue *for this caller*.
+   *
+   * The list above cannot serve the issue page: a shared link is a cold load, so
+   * there is no loaded project to filter. This is the only read in the app that
+   * starts from an id rather than from a project.
+   *
+   * Null rather than throwing, and deliberately the same null for "no such id"
+   * and "belongs to somebody else" — PocketBase's rules answer 404 for both, and
+   * distinguishing them here would turn a shared URL into an oracle for which
+   * issue ids exist.
+   */
+  get(id: string): Promise<Issue | null>
   setStatus(id: string, status: IssueStatus): Promise<Issue>
   remove(id: string): Promise<void>
   /**

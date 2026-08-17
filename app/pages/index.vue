@@ -8,11 +8,33 @@ import { SlidersHorizontal } from 'lucide-vue-next'
  * What to show lives in `useIssueBoard` (and, under that, in the pure functions
  * in `shared/issues`), and what exists lives in `useWorkspace`.
  */
+const route = useRoute()
+const router = useRouter()
 const { user, signOut } = useAuth()
 const workspace = useWorkspace()
 const board = useIssueBoard(workspace.currentProjectId, workspace.stackName)
 const { dsnFor } = useDsn()
 const now = useClock()
+
+/**
+ * `?q=` narrows the list, and is then removed from the URL.
+ *
+ * It is how the issue page's tag grid gets back here — that page has no search
+ * box, so clicking `release:v1.4.0` navigates with the token instead. Consumed
+ * rather than kept in sync: leaving it in the address bar would make the URL and
+ * the search box two sources of truth for one filter, and the first edit in the
+ * box would make them disagree. It is an instruction on arrival, not state.
+ */
+watch(
+  () => route.query.q,
+  (q) => {
+    if (typeof q !== 'string' || q === '') return
+    const [key, ...rest] = q.split(':')
+    if (key && rest.length > 0) board.narrowBy(key, rest.join(':'))
+    void router.replace({ path: '/', query: {} })
+  },
+  { immediate: true },
+)
 
 const showSetup = ref(false)
 
@@ -135,11 +157,7 @@ async function handleSignOut() {
     />
 
     <div class="mt-4 border-t border-rule">
-      <IssueLiveNotice
-        :pending="board.pendingCount.value"
-        :live="board.live.value"
-        @apply="board.applyPending"
-      />
+      <IssueLiveNotice :live="board.live.value" />
 
       <!--
         A TransitionGroup because this list reorders on its own: realtime patches
@@ -152,12 +170,7 @@ async function handleSignOut() {
           :key="issue.id"
           :issue="issue"
           :stack-name="workspace.stackName(issue.stackId)"
-          :expanded="board.expandedId.value === issue.id"
           :now="now"
-          @toggle="board.toggleExpanded(issue.id)"
-          @set-status="board.setStatus(issue.id, $event)"
-          @remove="board.remove(issue.id)"
-          @narrow="board.narrowBy"
         />
       </TransitionGroup>
 

@@ -3,7 +3,16 @@ import { Check, EyeOff, RotateCcw, Trash2 } from 'lucide-vue-next'
 
 import type { IssueStatus } from '#shared/domain/types'
 
-const props = defineProps<{ status: IssueStatus }>()
+const props = defineProps<{
+  status: IssueStatus
+  /**
+   * Whether delete has been clicked once already.
+   *
+   * The arming lives in the page, not here: this component stays presentational,
+   * and the timeout that disarms it belongs with the action it guards.
+   */
+  removeArmed?: boolean
+}>()
 
 const emit = defineEmits<{ setStatus: [status: IssueStatus]; remove: [] }>()
 
@@ -46,13 +55,19 @@ const isOpen = computed(() => props.status === 'unresolved')
 
     <span class="flex-1" />
 
+    <!--
+      Armed, it says what the next click will do. Deleting an issue is the only
+      irreversible thing on this page — resolving can be undone by reopening —
+      and it sits a few pixels from controls that cannot hurt anybody.
+    -->
     <button
       type="button"
-      class="text-row flex cursor-pointer items-center gap-[7px] border-none bg-transparent p-0 font-[inherit] text-ink-dim hover:text-level-error"
+      class="text-row flex cursor-pointer items-center gap-[7px] border-none bg-transparent p-0 font-[inherit]"
+      :class="props.removeArmed ? 'text-level-error' : 'text-ink-dim hover:text-level-error'"
       @click="emit('remove')"
     >
       <Trash2 :size="13" :stroke-width="2" />
-      delete
+      {{ props.removeArmed ? 'delete — click again' : 'delete' }}
     </button>
   </div>
 </template>

@@ -10,6 +10,20 @@
 export const PAYLOAD_VERSION = 1
 
 /**
+ * One line of source, as it looked when the error happened.
+ *
+ * `n` is the line's real number in its file, not its index in the window — the
+ * dashboard prints it in the gutter, and a window starting at line 82 that
+ * claimed to start at 1 would send a reader to the wrong place.
+ */
+export interface SourceLine {
+  n: number
+  text: string
+  /** The line the frame points at. Exactly one line in a window carries this. */
+  err?: boolean
+}
+
+/**
  * One frame of a stack trace.
  *
  * Everything is optional because a stack is a string produced by an engine we
@@ -21,6 +35,24 @@ export interface StackFrame {
   function?: string
   lineno?: number
   colno?: number
+  /**
+   * A few lines of source around `lineno`, captured at throw time.
+   *
+   * Optional and additive, so this is **not** a `v` bump: ingest has accepted
+   * `frame.code` since before anything produced it, and a `v: 1` payload
+   * without it stays exactly as valid as it was.
+   *
+   * Captured rather than resolved later, and that is the whole point. Source
+   * moves — the build that threw this is not the build deployed next week, and
+   * a snippet reconstructed afterwards from a current source map is a confident
+   * lie about the past. A snapshot taken at the moment of the throw cannot
+   * drift, for the same reason `lastSeen` only moves forward.
+   *
+   * Only something holding the right source can fill this in. In Node that is
+   * the process itself (see `@erratas/sdk/node`); in a browser it is the app's
+   * own server, because a map a browser can fetch is a map anyone can fetch.
+   */
+  code?: SourceLine[]
 }
 
 export interface ExceptionPayload {
@@ -86,6 +118,22 @@ export interface InitOptions {
    * propagating into the caller's stack.
    */
   beforeSend?: (event: ErratasEvent) => ErratasEvent | null
+  /**
+   * URL of a symbolicate endpoint on **your own** server, which turns minified
+   * browser frames back into readable source — see `createSymbolicateHandler`
+   * in `@erratas/sdk/node`.
+   *
+   * Set this and reports wait briefly (up to a second) for source before being
+   * sent; a slow or dead endpoint costs the snippet, never the report. Leave it
+   * unset and nothing changes: reporting stays entirely synchronous.
+   *
+   * Two consequences worth knowing. Resolved frames name your original files, so
+   * they group separately from the minified frames the same bug produced before
+   * — issues split once, at the deploy that enables this. And the endpoint hands
+   * out slices of your source to anyone who can call it, so put it behind
+   * whatever gate that deserves in your application.
+   */
+  symbolicate?: string
   /** Emit SDK diagnostics on the console. Off by default; noisy in production. */
   debug?: boolean
 }

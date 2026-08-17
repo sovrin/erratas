@@ -138,9 +138,22 @@ function normaliseFilename(loc) {
       // the end of the string, and would never match while a line number was
       // still trailing it.
       .replace(/:\d+(:\d+)?$/, '')
-      // `main-a1b2c3d4.js` → `main.js`. Eight or more hex characters between a
-      // dash and the extension is a content hash and nothing else.
-      .replace(/-[0-9a-f]{8,}(\.[a-z0-9]+)$/i, '$1')
+      // `main-a1b2c3d4.js` and `main.a1b2c3d4e5f6.js` both → `main.js`. Eight or
+      // more hex characters, after a dash *or* a dot, before the extension.
+      //
+      // The dot form is webpack's and tsc's default and was missed until now,
+      // which meant every webpack deploy re-opened every issue in the project:
+      // the hash changes, so the filename changes, so the fingerprint changes,
+      // so the issue is brand new.
+      //
+      // Still deliberately hex-only. Rollup and Vite emit base64-ish hashes
+      // (`index-DiwrgTda.js`), and the pattern that would catch those —
+      // "8+ alphanumerics" — also catches `main-controller.js`, merging two
+      // unrelated files into one issue. Under-stripping leaves issues split,
+      // which is visible and recoverable; over-stripping merges distinct bugs
+      // into one row, which silently loses information. Symbolicated frames name
+      // original source files and avoid the question entirely.
+      .replace(/[-.][0-9a-f]{8,}(\.[a-z0-9]+)$/i, '$1')
   )
 }
 

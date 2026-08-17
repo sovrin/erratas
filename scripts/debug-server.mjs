@@ -10,9 +10,30 @@ import { createReadStream, existsSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { extname, join, normalize, resolve } from 'node:path'
 
+import { createSymbolicateHandler } from '../packages/sdk/dist/node/index.mjs'
+
 const ROOT = resolve(import.meta.dirname, '../examples/debug-app')
 const SDK_BUNDLE = resolve(import.meta.dirname, '../packages/sdk/dist/index.mjs')
+const MINIFIED_BUNDLE = resolve(ROOT, 'bundle')
 const PORT = Number(process.env.DEBUG_PORT || 3001)
+
+/**
+ * The other half of browser symbolication, standing in for the host app's server.
+ *
+ * This is the part that cannot live in the browser: a source map the page can
+ * fetch is a source map anyone can fetch, so the map stays here and only the
+ * handful of lines around the throw is handed back. `bundle/` holds a committed
+ * minified fixture and its map — a stand-in for a production build — and nothing
+ * outside that directory is readable through this route.
+ *
+ * Same origin as the page on purpose. A symbolicate endpoint belongs on the
+ * application's own server, which is exactly what this script is pretending to
+ * be; the *ingest* endpoint is the cross-origin one, and that is still :3000.
+ */
+const symbolicate = createSymbolicateHandler({
+  root: MINIFIED_BUNDLE,
+  basePath: '/bundle',
+})
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -27,8 +48,17 @@ if (!existsSync(SDK_BUNDLE)) {
   process.exit(1)
 }
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
+
+  if (url.pathname === '/__erratas/symbolicate') {
+    const body = await readBody(req)
+    const response = await symbolicate(
+      new Request(url, { method: req.method, body: body || undefined }),
+    )
+    res.writeHead(response.status, { 'content-type': 'application/json' })
+    return res.end(await response.text())
+  }
 
   // The page imports the SDK as a module. Mapping it here rather than copying
   // the bundle keeps this testing whatever was last built, not a stale copy.
@@ -46,6 +76,14 @@ const server = createServer((req, res) => {
 
   send(res, file)
 })
+
+function readBody(req) {
+  return new Promise((resolve) => {
+    let body = ''
+    req.on('data', (chunk) => (body += chunk))
+    req.on('end', () => resolve(body))
+  })
+}
 
 function send(res, file) {
   res.writeHead(200, {

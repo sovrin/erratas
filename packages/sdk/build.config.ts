@@ -1,7 +1,10 @@
 import { defineBuildConfig } from 'unbuild'
 
 export default defineBuildConfig({
-  entries: ['src/index'],
+  // Two entries, and the split is load-bearing: `src/node` imports `node:fs`,
+  // which must never reach a browser bundle. `failOnWarn` below is what turns
+  // an accidental import across that line into a failed build.
+  entries: ['src/index', 'src/node/index'],
   declaration: true,
   clean: true,
   // The SDK ships with no runtime dependencies on purpose — bundle size is the

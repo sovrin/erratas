@@ -444,6 +444,12 @@
           release: 'debug-reporter',
           tags: { source: 'debug-reporter' },
           debug: true,
+          // Served by scripts/debug-server.mjs on this same origin, standing in
+          // for the host application's own server. Only the "minified bundle"
+          // trigger produces frames it can resolve; everything else on this page
+          // throws from unminified inline script, where there is no map and
+          // nothing to look up.
+          symbolicate: '/__erratas/symbolicate',
         })
 
         running = true
@@ -554,6 +560,35 @@
           hint: 'capped at 30 per rolling minute',
           run: () => {
             for (let i = 0; i < 50; i++) captureException(new Error(`distinct failure ${i}`))
+          },
+        },
+        {
+          // The one trigger that exercises symbolication, and the only one whose
+          // payload should arrive with `code` on its frames. The bundle in
+          // examples/debug-app/bundle/ is minified to a single line, so the raw
+          // frame is `broken.js:1:<column>` — unreadable on its own. What lands
+          // in the report instead is brokenRepository.ts with the throwing line
+          // marked, resolved by the endpoint on this origin from a map the
+          // browser never sees.
+          //
+          // Watch for two things in the payload below: `filename` should name the
+          // .ts file rather than the bundle, and `code` should be present. If the
+          // frame still says broken.js, the endpoint did not answer in time and
+          // the SDK sent the event plain — which is the intended failure, not a
+          // bug.
+          label: 'throw from a minified bundle',
+          hint: 'expect original .ts source in the payload',
+          run: async () => {
+            // The import is inside the guard too. A missing fixture would
+            // otherwise reject unhandled, and the SDK's own handler would
+            // faithfully report *that* — a phantom error about the harness,
+            // sitting in the issue list looking like a real one.
+            try {
+              const { storeUser } = await import('/bundle/broken.js')
+              storeUser('lea@quant.fm')
+            } catch (err) {
+              captureException(err, { tags: { where: 'minified-bundle' } })
+            }
           },
         },
         {

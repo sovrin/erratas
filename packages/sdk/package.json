@@ -1,6 +1,6 @@
 {
   "name": "@erratas/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Report errors from a JavaScript or TypeScript application to an erratas instance.",
   "license": "MIT",
   "files": [
@@ -16,6 +16,11 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.mts",
+      "import": "./dist/node/index.mjs",
+      "require": "./dist/node/index.cjs"
     }
   },
   "scripts": {

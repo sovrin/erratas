@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { formatAge } from '#shared/domain/relativeTime'
-import type { Issue, IssueLevel, IssueStatus } from '#shared/domain/types'
+import type { Issue, IssueLevel } from '#shared/domain/types'
 
+/**
+ * One row of the list, and nothing more.
+ *
+ * It used to expand in place and carry the whole detail panel with it. That moved
+ * to `pages/issues/[id].vue`, because an issue is the thing people send each other
+ * and a row that opens in place has no address to send.
+ *
+ * Two things followed from the move, and both are improvements rather than
+ * consolations. The row is now a link, so middle-click and cmd-click open an issue
+ * in a new tab like anything else on the web. And nothing destructive is reachable
+ * from the list any more — which is what lets the live list update freely, since a
+ * row shifting under the cursor now costs a wrong navigation rather than a wrong
+ * deletion.
+ */
 const props = defineProps<{
   issue: Issue
   stackName: string
-  expanded: boolean
   now: number
-}>()
-
-const emit = defineEmits<{
-  toggle: []
-  setStatus: [status: IssueStatus]
-  remove: []
-  narrow: [key: string, value: string]
 }>()
 
 const LEVEL_COLOURS: Record<IssueLevel, string> = {
@@ -32,11 +38,9 @@ const dotClass = computed(() => (retired.value ? 'bg-[#333333]' : LEVEL_COLOURS[
 
 <template>
   <div class="border-b border-rule">
-    <button
-      type="button"
-      :aria-expanded="expanded"
-      class="flex w-full cursor-pointer items-baseline gap-[14px] border-none bg-transparent px-1 py-[14px] text-left font-[inherit] hover:bg-hover-row"
-      @click="emit('toggle')"
+    <NuxtLink
+      :to="`/issues/${props.issue.id}`"
+      class="flex w-full items-baseline gap-[14px] px-1 py-[14px] text-left no-underline hover:bg-hover-row"
     >
       <span class="size-[7px] shrink-0 self-center rounded-full" :class="dotClass" />
 
@@ -60,35 +64,6 @@ const dotClass = computed(() => (retired.value ? 'bg-[#333333]' : LEVEL_COLOURS[
       <span class="text-meta w-16 shrink-0 text-right text-ink-dim">
         {{ formatAge(props.issue.lastSeen, props.now) }}
       </span>
-    </button>
-
-    <!--
-      Three elements, and the bare middle one is load-bearing — see `.reveal` in
-      main.css. `reveal` animates the panel's real height (a stack trace has no
-      predictable one, which rules out `max-height`) by interpolating the grid's
-      `grid-template-rows`; the middle div is what gets clipped on the way, and any
-      padding on it would become a floor the panel snaps across instead of animating
-      to. So the padding lives one level deeper.
-    -->
-    <Transition name="reveal">
-      <div v-if="expanded" class="reveal">
-        <div>
-          <div class="pt-[6px] pr-1 pb-[26px] pl-[30px]">
-            <IssueTagGrid
-              :issue="props.issue"
-              :stack-name="props.stackName"
-              :now="props.now"
-              @narrow="(key, value) => emit('narrow', key, value)"
-            />
-            <StackTrace :frames="props.issue.frames" />
-            <IssueActions
-              :status="props.issue.status"
-              @set-status="emit('setStatus', $event)"
-              @remove="emit('remove')"
-            />
-          </div>
-        </div>
-      </div>
-    </Transition>
+    </NuxtLink>
   </div>
 </template>

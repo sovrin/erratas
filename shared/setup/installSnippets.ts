@@ -26,6 +26,14 @@ const JAVASCRIPT_PLATFORMS = [
   'react',
 ]
 
+/**
+ * Platforms that run on a server, where source context is a file read away.
+ *
+ * Matched before `javascript`, since first match wins and `JAVASCRIPT_PLATFORMS`
+ * would otherwise swallow `node` and hand back the browser snippet.
+ */
+const SERVER_PLATFORMS = ['node', 'bun', 'deno', 'express', 'fastify', 'nitro']
+
 export const SNIPPET_GENERATORS: readonly SnippetGenerator[] = [
   {
     id: 'php',
@@ -35,6 +43,11 @@ export const SNIPPET_GENERATORS: readonly SnippetGenerator[] = [
 \\Erratas\\Client::init([
     'dsn' => '${dsn}',
 ]);`,
+  },
+  {
+    id: 'node',
+    matches: (platform) => SERVER_PLATFORMS.some((name) => platform.includes(name)),
+    render: (dsn) => nodeSnippet(dsn),
   },
   {
     id: 'javascript',
@@ -56,12 +69,55 @@ export const FALLBACK_SNIPPET: SnippetGenerator = {
   render: (dsn) => javascriptSnippet(dsn),
 }
 
+/**
+ * The browser snippet.
+ *
+ * `symbolicate` is commented rather than omitted. A minified bundle produces
+ * stack frames like `app-a1b2c3d4.js:1:48213`, which nobody can act on, and this
+ * panel is the only place a reader would ever find out there is an answer. It
+ * stays commented because it needs an endpoint mounted on their own server
+ * first — a snippet that silently points at a route they do not have would look
+ * broken.
+ */
 function javascriptSnippet(dsn: string): string {
   return `npm install @erratas/sdk
 
 import { init } from "@erratas/sdk";
 
-init({ dsn: "${dsn}" });`
+init({
+  dsn: "${dsn}",
+  // Minified frames? Mount createSymbolicateHandler() from
+  // "@erratas/sdk/node" on your own server and point at it, to get the
+  // original source lines attached to every report.
+  // symbolicate: "/__erratas/symbolicate",
+});`
+}
+
+/**
+ * The server snippet, which can do more than the browser one.
+ *
+ * Source context is uncommented here because it needs nothing mounted: the
+ * process that threw has the file, or the build's source map, on the same disk.
+ * The flag note is the one thing people get wrong — with sources absent *and*
+ * `--enable-source-maps` on, Node rewrites frames to files that were never
+ * deployed and there is nothing left to read.
+ */
+function nodeSnippet(dsn: string): string {
+  return `npm install @erratas/sdk
+
+import { init, captureException } from "@erratas/sdk";
+import { withSourceContext } from "@erratas/sdk/node";
+
+init({
+  dsn: "${dsn}",
+  // Attaches the lines around each throw. If you deploy only your build
+  // output, leave --enable-source-maps OFF and the build's .map is used.
+  beforeSend: withSourceContext(),
+});
+
+// Node is not auto-instrumented: an uncaughtException handler would stop
+// your process exiting on a crash, which is not a library's call to make.
+captureException(error);`
 }
 
 export function snippetFor(
