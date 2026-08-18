@@ -95,8 +95,8 @@ function toDisplayFrames(raw) {
       loc: loc || 'unknown',
     }
 
-    // Source context, if a future SDK ever sends it. Nothing does today, so
-    // this is only here to avoid dropping it silently when something does.
+    // Source context, captured at throw time by the SDK — from disk in Node,
+    // or from the app's own symbolicate endpoint in a browser.
     if (Array.isArray(frame.code)) {
       const code = []
       for (let j = 0; j < frame.code.length && code.length < MAX_CODE_LINES; j++) {

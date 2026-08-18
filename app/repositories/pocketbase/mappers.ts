@@ -1,14 +1,14 @@
 import type { RecordModel } from 'pocketbase'
 
-import type {
-  DisplayFrame,
-  Issue,
-  IssueLevel,
-  IssueStatus,
-  Project,
-  Retention,
-  SourceLine,
-  Stack,
+import {
+  ISSUE_LEVELS,
+  ISSUE_STATUSES,
+  RETENTIONS,
+  type DisplayFrame,
+  type Issue,
+  type Project,
+  type SourceLine,
+  type Stack,
 } from '#shared/domain/types'
 
 /**
@@ -48,10 +48,6 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], fallback:
   return (allowed as readonly string[]).includes(value) ? (value as T) : fallback
 }
 
-const LEVELS: readonly IssueLevel[] = ['error', 'warning', 'info']
-const STATUSES: readonly IssueStatus[] = ['unresolved', 'resolved', 'ignored']
-const RETENTIONS: readonly Retention[] = ['30d', '90d', 'forever']
-
 export function toProject(record: RecordModel): Project {
   return {
     id: record.id,
@@ -78,10 +74,10 @@ export function toIssue(record: RecordModel): Issue {
     fingerprint: text(record, 'fingerprint'),
     title: text(record, 'title'),
     culprit: text(record, 'culprit'),
-    level: oneOf(text(record, 'level'), LEVELS, 'error'),
+    level: oneOf(text(record, 'level'), ISSUE_LEVELS, 'error'),
     // An issue exists because something broke; if the column is somehow
     // unreadable, the safe reading is that it still needs attention.
-    status: oneOf(text(record, 'status'), STATUSES, 'unresolved'),
+    status: oneOf(text(record, 'status'), ISSUE_STATUSES, 'unresolved'),
     count: count(record, 'count'),
     users: count(record, 'users'),
     firstSeen: timestamp(record, 'firstSeen'),

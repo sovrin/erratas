@@ -7,10 +7,6 @@
  * thing this page could imply. Naming the first is what makes the second
  * trustworthy.
  *
- * It used to have a second state, explaining changes held back while a row was
- * expanded. That went when the detail view moved to its own route: nothing on the
- * list is destructive any more, so there is nothing to hold changes for.
- *
  * Rendered as the first row of the list, sharing the row border, so it reads as
  * part of the list it describes rather than as a banner over it.
  */

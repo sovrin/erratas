@@ -22,18 +22,11 @@ export function useAuth() {
     pb.authStore.clear()
   }
 
-  async function updateProfile(data: Partial<Pick<Users, 'name' | 'avatar'>>) {
-    if (!user.value) return
-    await pb.collection('users').update(user.value.id, data)
-    await pb.collection('users').authRefresh()
-  }
-
   return {
     user,
     isLoggedIn: computed(() => !!user.value),
     signIn,
     signUp,
     signOut,
-    updateProfile,
   }
 }

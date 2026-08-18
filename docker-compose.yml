@@ -18,5 +18,6 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       NUXT_POCKETBASE_URL: http://database:8090
+      NUXT_PUBLIC_ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
     depends_on:
       - database

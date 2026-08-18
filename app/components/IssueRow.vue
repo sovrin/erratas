@@ -5,16 +5,10 @@ import type { Issue, IssueLevel } from '#shared/domain/types'
 /**
  * One row of the list, and nothing more.
  *
- * It used to expand in place and carry the whole detail panel with it. That moved
- * to `pages/issues/[id].vue`, because an issue is the thing people send each other
- * and a row that opens in place has no address to send.
- *
- * Two things followed from the move, and both are improvements rather than
- * consolations. The row is now a link, so middle-click and cmd-click open an issue
- * in a new tab like anything else on the web. And nothing destructive is reachable
- * from the list any more — which is what lets the live list update freely, since a
- * row shifting under the cursor now costs a wrong navigation rather than a wrong
- * deletion.
+ * A link rather than a button, so middle-click and cmd-click open an issue in a new
+ * tab like anything else on the web. Nothing destructive is reachable from the list,
+ * which is what lets it update live: a row shifting under the cursor costs a wrong
+ * navigation rather than a wrong deletion.
  */
 const props = defineProps<{
   issue: Issue

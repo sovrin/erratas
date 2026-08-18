@@ -193,4 +193,4 @@ function isResponse(value: unknown): value is SymbolicateResponse {
   )
 }
 
-export { MAX_FRAMES as SYMBOLICATE_MAX_FRAMES, TIMEOUT_MS as SYMBOLICATE_TIMEOUT_MS }
+export { TIMEOUT_MS as SYMBOLICATE_TIMEOUT_MS }

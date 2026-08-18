@@ -39,22 +39,3 @@ export const TAG_RESOLVERS: Readonly<Record<string, TagResolver>> = {
   browser: (issue) => issue.browser,
   runtime: (issue) => issue.runtime,
 }
-
-/**
- * The canonical name for each dimension, used when the UI writes a token *into*
- * the search box (clicking a tag in an issue's detail). Aliases are accepted on
- * the way in but never produced on the way out, so the box stays consistent.
- */
-export const CANONICAL_TAG_KEYS = [
-  'stack',
-  'env',
-  'release',
-  'level',
-  'status',
-  'user',
-  'os',
-  'browser',
-  'runtime',
-] as const
-
-export type CanonicalTagKey = (typeof CANONICAL_TAG_KEYS)[number]

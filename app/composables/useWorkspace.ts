@@ -44,9 +44,6 @@ export function useWorkspace() {
     () => projects.value.find((p) => p.id === currentProjectId.value) ?? null,
   )
 
-  /** Stacks belonging to the open project. `stacks` holds only these already. */
-  const currentStacks = computed(() => stacks.value)
-
   const stackName = (stackId: string): string =>
     stacks.value.find((s) => s.id === stackId)?.name ?? stackId
 
@@ -240,7 +237,7 @@ export function useWorkspace() {
 
   return {
     projects,
-    stacks: currentStacks,
+    stacks,
     currentProject,
     currentProjectId,
     loading,

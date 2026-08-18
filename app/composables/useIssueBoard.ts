@@ -112,14 +112,9 @@ export function useIssueBoard(projectId: Ref<string | null>, stackName: (id: str
   /**
    * Changes wait only while a fresh read is replacing the list wholesale.
    *
-   * There used to be a second condition here — hold everything while a row was
-   * expanded — because every destructive control lived inside that expanded row
-   * and the list reorders on `lastSeen`, so an arriving event could slide a
-   * different issue under an armed delete button. Moving the detail view to its
-   * own route removed the hazard rather than mitigating it: nothing on this list
-   * is destructive now, so a row shifting costs a wrong navigation and a press of
-   * Back. The pause, the pending count and the notice that explained them all
-   * went with it.
+   * Nothing on the list is destructive — the detail view owns every such control —
+   * so a row moving under the cursor costs a wrong navigation and a press of Back,
+   * which is not worth pausing a live list for.
    */
   const canFlush = computed(() => !loading.value)
 

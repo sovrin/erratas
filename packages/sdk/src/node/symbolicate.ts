@@ -202,5 +202,3 @@ function json(body: SymbolicateResponse, status: number): Response {
     },
   })
 }
-
-export { MAX_FRAMES as SYMBOLICATE_HANDLER_MAX_FRAMES }
