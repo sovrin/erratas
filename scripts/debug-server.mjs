@@ -44,7 +44,7 @@ const CONTENT_TYPES = {
 }
 
 if (!existsSync(SDK_BUNDLE)) {
-  console.error('The SDK is not built.\n\n  npm run sdk:build\n')
+  console.error('The SDK is not built.\n\n  pnpm sdk:build\n')
   process.exit(1)
 }
 
@@ -95,5 +95,5 @@ function send(res, file) {
 
 server.listen(PORT, () => {
   console.log(`debug reporter on http://localhost:${PORT}`)
-  console.log("paste a DSN from the dashboard's setup panel to start reporting")
+  console.log("paste a DSN from a project's Errors panel to start reporting")
 })

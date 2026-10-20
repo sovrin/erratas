@@ -49,13 +49,13 @@ describe('parseDsn', () => {
 describe('ingestUrl', () => {
   it('puts the stack in the path and the key in the query', () => {
     expect(ingestUrl(parseDsn('https://8f2ac1e9b7d4@erratas.sh/1'))).toBe(
-      'https://erratas.sh/api/1/store/?erratas_key=8f2ac1e9b7d4',
+      'https://erratas.sh/v1/errors/1?erratas_key=8f2ac1e9b7d4',
     )
   })
 
   it('preserves port and path prefix', () => {
     expect(ingestUrl(parseDsn('http://k@localhost:8090/erratas/3'))).toBe(
-      'http://localhost:8090/erratas/api/3/store/?erratas_key=k',
+      'http://localhost:8090/erratas/v1/errors/3?erratas_key=k',
     )
   })
 })

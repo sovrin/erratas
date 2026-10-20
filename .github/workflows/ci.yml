@@ -1,0 +1,37 @@
+name: Checks
+on: [push, pull_request]
+# Checks only read the code; the token can do no more.
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: erratas
+      # aequitas and nexitas are unpublished: check them out next to this module. The tests import
+      # the core from nexitas' sources, which need its install, and that needs nexitas' modules.
+      # The app itself is typechecked and built in nexitas' checks.
+      - uses: actions/checkout@v4
+        with:
+          repository: sovrin/aequitas
+          path: aequitas
+      - uses: actions/checkout@v4
+        with:
+          repository: sovrin/nexitas
+          path: nexitas
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: aequitas
+      - run: node scripts/modules.ts && pnpm install --frozen-lockfile
+        working-directory: nexitas
+      - run: pnpm install --frozen-lockfile
+        working-directory: erratas
+      - run: pnpm check
+        working-directory: erratas
+      - run: pnpm lint && pnpm format:check
+        working-directory: erratas

@@ -1,33 +1,13 @@
 import { defineConfig } from 'oxfmt'
 
+// Formatting rules for the whole repository. oxfmt also honours .gitignore, so only the tracked
+// files it should skip are listed here: the lockfile, and what release-please writes.
 export default defineConfig({
-  printWidth: 100,
-  tabWidth: 2,
-  useTabs: false,
-
   semi: false,
   singleQuote: true,
   trailingComma: 'all',
-  arrowParens: 'always',
-  bracketSpacing: true,
-
-  // Keep <script> and <style> aligned with the SFC tags.
-  vueIndentScriptAndStyle: false,
-
-  // Change to true if you prefer one Vue prop per line.
-  singleAttributePerLine: false,
-
-  sortImports: {
-    internalPattern: ['~/', '@/', '#'],
-    newlinesBetween: true,
-
-    // Avoid reordering imports that may execute code.
-    sortSideEffects: false,
-  },
-
-  sortPackageJson: {
-    sortScripts: true,
-  },
-
-  ignorePatterns: ['.nuxt/**', '.output/**', 'dist/**', 'coverage/**'],
+  printWidth: 100,
+  // Keep the hand-curated key order in every package.json.
+  sortPackageJson: false,
+  ignorePatterns: ['pnpm-lock.yaml', 'CHANGELOG.md', '.release-please-manifest.json'],
 })

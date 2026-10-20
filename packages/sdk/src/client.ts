@@ -153,7 +153,7 @@ export function createClient(options: InitOptions, sender: Sender = defaultSende
 
   /** Releases anything waiting on source, then drains the queue. */
   function flushAll(useBeacon: boolean): void {
-    for (const release of [...held]) release()
+    for (const release of held) release()
     queue.flush(useBeacon)
   }
 

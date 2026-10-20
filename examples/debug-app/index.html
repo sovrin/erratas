@@ -306,7 +306,7 @@
       const realFetch = window.fetch.bind(window)
       const realBeacon = navigator.sendBeacon ? navigator.sendBeacon.bind(navigator) : null
 
-      const isReport = (url) => String(url).includes('/store/')
+      const isReport = (url) => String(url).includes('/v1/errors/')
 
       window.fetch = (input, options = {}) => {
         const url = typeof input === 'string' ? input : input.url
