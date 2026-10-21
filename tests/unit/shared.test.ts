@@ -131,12 +131,11 @@ describe('summarise', () => {
 describe('paginate', () => {
   const items = Array.from({ length: 47 }, (_, index) => index + 1)
 
-  it('slices and labels a page', () => {
-    expect(paginate(items, 5, 10)).toMatchObject({
+  it('slices a page', () => {
+    expect(paginate(items, 5, 10)).toEqual({
       items: [41, 42, 43, 44, 45, 46, 47],
       page: 5,
-      pages: 5,
-      label: '41–47 of 47',
+      total: 47,
     })
   })
 
@@ -149,7 +148,7 @@ describe('paginate', () => {
   })
 
   it('never says page 0 of 0', () => {
-    expect(paginate([], 1)).toMatchObject({ page: 1, pages: 1, label: '0 of 0' })
+    expect(paginate([], 1)).toEqual({ items: [], page: 1, total: 0 })
   })
 })
 

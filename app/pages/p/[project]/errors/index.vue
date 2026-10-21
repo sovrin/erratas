@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { errorMessage, formatAge, formatCount } from '#nexitas/app/lib/format'
+import { formatAge, formatCount } from '#nexitas/app/lib/format'
 import type { Issue, Stack } from '../../../../../shared/contracts'
 import {
+  ISSUES_PER_PAGE,
   SEARCH_KEYS,
   paginate,
   parseSearchQuery,
@@ -18,14 +19,11 @@ const project = useProject().id.value
 const route = useRoute()
 const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
 const requestedPage = computed(() => Number(route.query.page) || 1)
-useHead({ title: `Errors · ${project}` })
-const { data: issues, error, refresh } = await useFetch<Issue[]>(`/api/p/${project}/errors`)
+const { data: issues, error, refresh } = await useProjectFetch<Issue[]>('/errors')
 // Without a stack nothing can report, which the empty list says instead of "nothing yet".
-const { data: stacks, refresh: refreshStacks } = await useFetch<Stack[]>(
-  `/api/p/${project}/errors/stacks`,
-  { key: `erratas-stacks-${project}` },
-)
-useLive(() => Promise.all([refresh(), refreshStacks()]))
+const { data: stacks } = await useProjectFetch<Stack[]>('/errors/stacks', {
+  key: `erratas-stacks-${project}`,
+})
 
 // Ages on screen move on their own while the page sits open.
 const now = ref(Date.now())
@@ -55,122 +53,102 @@ function board(next: { q?: string; page?: number }) {
 const searchText = ref(q.value)
 watch(q, (value) => (searchText.value = value))
 const search = () => navigateTo(board({ q: searchText.value.trim() }))
+const searchKeys = SEARCH_KEYS.map((key) => `${key}:`).join(' ')
 </script>
 
 <template>
-  <div class="stack gap-5">
-    <div class="page-header">
-      <div class="stack gap-1">
-        <h1 class="text-xl weight-600">Errors</h1>
-        <!-- The baseline, whatever the search: is anything happening? -->
-        <p v-if="issues" class="cluster gap-3 text-s text-muted">
-          <NuxtLink
-            v-if="summary.unresolved"
-            :to="board({ q: setSearchToken(q, 'status', 'unresolved') })"
-            class="link"
-            >{{ summary.unresolved }} unresolved</NuxtLink
-          >
-          <span v-else>nothing unresolved</span>
-          <span class="tabular">{{ summary.newIn24h }} new in 24h</span>
-          <span class="tabular">{{ formatCount(summary.events) }} events</span>
-          <span>{{
-            summary.lastEventAt === null
-              ? 'nothing reported yet'
-              : `last event ${formatAge(summary.lastEventAt, now)}`
-          }}</span>
-        </p>
-      </div>
-      <form role="search" @submit.prevent="search">
-        <input
-          v-model="searchText"
-          class="input font-mono text-s"
-          data-size="s"
-          type="search"
-          maxlength="200"
-          placeholder="status:unresolved"
-          aria-label="Search issues"
-          aria-describedby="search-keys"
-          @search="search"
-        />
-      </form>
-    </div>
-    <small id="search-keys" class="text-xs text-muted"
-      >Words match the title and culprit; narrow with
-      <span class="font-mono">{{ SEARCH_KEYS.map((key) => `${key}:`).join(' ') }}</span></small
-    >
-
-    <div v-if="error" class="alert" data-tone="danger" role="alert">
-      <div><strong>Could not load the issues.</strong> {{ errorMessage(error) }}</div>
-      <button type="button" class="btn" data-size="s" @click="refresh()">Try again</button>
-    </div>
-    <template v-else-if="issues">
-      <div v-if="page.items.length" class="table-scroll">
-        <table class="table" data-size="s">
-          <thead>
-            <tr>
-              <th scope="col">Issue</th>
-              <th scope="col" data-num>Events</th>
-              <th scope="col" data-num>Last seen</th>
-            </tr>
-          </thead>
-          <!-- Rows animate only while the view stays the same (live arrivals); a new search or
-               page replaces the list at once, keyed by the view. -->
-          <TransitionGroup :key="`${q}|${page.page}`" tag="tbody" name="row" class="relative">
-            <tr v-for="issue in page.items" :key="issue.id">
-              <td>
-                <span class="stack gap-1 min-w-0">
-                  <!-- Resolved and ignored recede: the list shows what still needs doing. -->
-                  <NuxtLink
-                    :to="`/p/${project}/errors/${issue.id}`"
-                    class="link break-words"
-                    :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
-                    >{{ issue.title }}</NuxtLink
+  <AppPage title="Errors" failed="Could not load the issues." :error="error" :retry="refresh">
+    <!-- The baseline, whatever the search: is anything happening? -->
+    <template v-if="issues" #subtitle>
+      <span class="cluster gap-3">
+        <NuxtLink
+          v-if="summary.unresolved"
+          :to="board({ q: setSearchToken(q, 'status', 'unresolved') })"
+          class="link"
+          >{{ summary.unresolved }} unresolved</NuxtLink
+        >
+        <span v-else>nothing unresolved</span>
+        <span class="tabular">{{ summary.newIn24h }} new in 24h</span>
+        <span class="tabular">{{ formatCount(summary.events) }} events</span>
+        <span>{{
+          summary.lastEventAt === null
+            ? 'nothing reported yet'
+            : `last event ${formatAge(summary.lastEventAt, now)}`
+        }}</span>
+      </span>
+    </template>
+    <template #actions>
+      <SearchBox
+        v-model="searchText"
+        label="Search issues"
+        placeholder="status:unresolved"
+        mono
+        :maxlength="200"
+        @search="search"
+      >
+        <template #hint
+          >Words match the title and culprit; narrow with
+          <span class="font-mono">{{ searchKeys }}</span></template
+        >
+      </SearchBox>
+    </template>
+    <template v-if="issues">
+      <DataTable v-if="page.items.length">
+        <thead>
+          <tr>
+            <th scope="col">Issue</th>
+            <th scope="col" data-num>Events</th>
+            <th scope="col" data-num>Last seen</th>
+          </tr>
+        </thead>
+        <!-- Rows animate only while the view stays the same (live arrivals); a new search or
+             page replaces the list at once, keyed by the view. -->
+        <TransitionGroup :key="`${q}|${page.page}`" tag="tbody" name="row" class="relative">
+          <tr v-for="issue in page.items" :key="issue.id">
+            <td>
+              <span class="stack gap-1 min-w-0">
+                <!-- Resolved and ignored recede: the list shows what still needs doing. -->
+                <NuxtLink
+                  :to="`/p/${project}/errors/${issue.id}`"
+                  class="link break-words"
+                  :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
+                  >{{ issue.title }}</NuxtLink
+                >
+                <span class="cluster gap-2 text-xs text-muted">
+                  <StateDot
+                    :tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
+                    >{{ issue.level }}, {{ issue.status }}</StateDot
                   >
-                  <span class="cluster gap-2 text-xs text-muted">
-                    <span
-                      class="dot"
-                      :data-tone="
-                        issue.status === 'unresolved' ? levelTones[issue.level] : undefined
-                      "
-                      aria-hidden="true"
-                    ></span>
-                    <span>{{ issue.level }}, {{ issue.status }}</span>
-                    <span class="font-mono break-words">{{ issue.stackName }}</span>
-                  </span>
+                  <span class="font-mono break-words">{{ issue.stackName }}</span>
                 </span>
-              </td>
-              <td data-num>{{ formatCount(issue.count) }}</td>
-              <td data-num class="text-muted">
-                <time :datetime="new Date(issue.lastSeen).toISOString()">{{
-                  formatAge(issue.lastSeen, now)
-                }}</time>
-              </td>
-            </tr>
-          </TransitionGroup>
-        </table>
-      </div>
-      <p v-else-if="q" class="text-muted">Nothing matches “{{ q }}”.</p>
-      <p v-else-if="stacks?.length" class="text-muted">
+              </span>
+            </td>
+            <td data-num>{{ formatCount(issue.count) }}</td>
+            <td data-num class="text-muted">
+              <time :datetime="new Date(issue.lastSeen).toISOString()">{{
+                formatAge(issue.lastSeen, now)
+              }}</time>
+            </td>
+          </tr>
+        </TransitionGroup>
+      </DataTable>
+      <EmptyState v-else-if="q">Nothing matches “{{ q }}”.</EmptyState>
+      <EmptyState v-else-if="stacks?.length">
         Nothing reported yet. Send a stack a test event from
         <NuxtLink :to="`/p/${project}`" class="link">the project’s page</NuxtLink>.
-      </p>
-      <p v-else class="text-muted">
+      </EmptyState>
+      <EmptyState v-else>
         Errors are not collected for this project yet.
         <NuxtLink :to="`/p/${project}`" class="link">Add a stack</NuxtLink> on its page to get the
         DSN its apps report with.
-      </p>
+      </EmptyState>
 
-      <nav v-if="page.pages > 1" class="cluster justify-between gap-4 text-s" aria-label="Pages">
-        <NuxtLink v-if="page.page > 1" :to="board({ page: page.page - 1 })" class="link"
-          >Newer</NuxtLink
-        >
-        <span v-else></span>
-        <span class="text-muted tabular">{{ page.label }}</span>
-        <NuxtLink v-if="page.page < page.pages" :to="board({ page: page.page + 1 })" class="link"
-          >Older</NuxtLink
-        >
-        <span v-else></span>
-      </nav>
+      <PagerNav
+        :page="page.page"
+        :page-size="ISSUES_PER_PAGE"
+        :total="page.total"
+        :to="(next) => board({ page: next })"
+      />
     </template>
-  </div>
+  </AppPage>
 </template>

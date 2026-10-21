@@ -11,10 +11,7 @@ const {
   data: stacks,
   error,
   refresh,
-} = await useFetch<Stack[]>(`/api/p/${props.project.id}/errors/stacks`, {
-  key: `erratas-stacks-${props.project.id}`,
-})
-useLive(refresh)
+} = await useProjectFetch<Stack[]>('/errors/stacks', { key: `erratas-stacks-${props.project.id}` })
 const origin = useRequestURL().origin
 /** What erratas says about this project, as the overview shows it. */
 const status = computed(
@@ -37,13 +34,11 @@ async function add() {
   await refresh()
 }
 
-const removing = ref<Stack>()
-const removeOpen = ref(false)
 const removeError = ref('')
-async function remove() {
+async function remove(stack: Stack) {
   removeError.value = ''
   try {
-    await $fetch(`/api/p/${props.project.id}/errors/stacks/${removing.value!.id}/delete`, {
+    await $fetch(`/api/p/${props.project.id}/errors/stacks/${stack.id}/delete`, {
       method: 'POST',
       body: {},
     })
@@ -57,16 +52,14 @@ async function remove() {
 <template>
   <!-- Under the module's name and icon, which the project page puts above it. -->
   <div class="stack gap-4">
-    <div v-if="error" class="alert" data-tone="danger" role="alert">
-      <div><strong>Could not load its stacks.</strong> {{ errorMessage(error) }}</div>
-    </div>
+    <AppAlert v-if="error" title="Could not load its stacks.">{{ errorMessage(error) }}</AppAlert>
     <template v-else-if="stacks">
       <!-- The figure first, as every panel leads with one; the setup folds away below it. -->
-      <p v-if="stacks.length" class="cluster gap-3 text-s">
+      <p v-if="stacks.length" class="cluster gap-3">
         <StatusItems :items="status" />
         <NuxtLink :to="`/p/${project.id}/errors`" class="link">Its issues</NuxtLink>
       </p>
-      <p v-else class="text-s text-muted">
+      <p v-else class="text-muted">
         Reports what breaks in its apps. Add a stack for each runtime, such as the site and its API,
         to get the DSN it reports with.
       </p>
@@ -78,29 +71,28 @@ async function remove() {
         :aria-label="`Stack ${stack.name}`"
       >
         <div class="cluster gap-3">
-          <strong class="text-s">{{ stack.name }}</strong>
+          <strong>{{ stack.name }}</strong>
           <span v-if="stack.platform" class="font-mono text-xs text-muted">{{
             stack.platform
           }}</span>
-          <button
-            type="button"
-            class="btn end"
-            data-size="s"
-            data-variant="ghost"
-            data-tone="danger"
-            @click="((removing = stack), (removeOpen = true))"
+          <DangerAction
+            class="end"
+            label="Remove"
+            :title="`Remove ${stack.name}?`"
+            confirm-label="Remove stack"
+            @confirm="remove(stack)"
           >
-            Remove
-          </button>
+            Its issues go with it, and apps reporting with its DSN get a 401. This cannot be undone.
+          </DangerAction>
         </div>
         <details>
-          <summary class="text-s">Install, with its DSN</summary>
+          <summary>Install, with its DSN</summary>
           <EmbedCode
             :code="snippetFor(stack.platform, buildDsn(origin, stack.publicKey, stack.id), origin)"
           />
         </details>
         <details>
-          <summary class="text-s">Send a test event</summary>
+          <summary>Send a test event</summary>
           <EmbedCode :code="testEventCommand(buildIngestUrl(origin, stack.publicKey, stack.id))" />
         </details>
       </section>
@@ -108,9 +100,7 @@ async function remove() {
         >Browsers may report only from the project's sites; servers send no origin and need only the
         DSN.</small
       >
-      <div v-if="removeError" class="alert" data-tone="danger" role="alert">
-        <div><strong>Could not remove the stack.</strong> {{ removeError }}</div>
-      </div>
+      <AppAlert v-if="removeError" title="Could not remove the stack.">{{ removeError }}</AppAlert>
 
       <form class="cluster gap-3 items-end" @submit.prevent="add">
         <div class="field">
@@ -155,18 +145,5 @@ async function remove() {
       </form>
       <FormIssues :error="addError" :issues="issues" failed="Could not add the stack." />
     </template>
-
-    <ConfirmDialog
-      v-model:open="removeOpen"
-      :title="`Remove ${removing?.name}?`"
-      confirm-label="Remove stack"
-      tone="danger"
-      @confirm="remove"
-    >
-      <template #description
-        >Its issues go with it, and apps reporting with its DSN get a 401. This cannot be
-        undone.</template
-      >
-    </ConfirmDialog>
   </div>
 </template>

@@ -111,18 +111,13 @@ export function summarise(issues: readonly Issue[], now: number) {
 
 export const ISSUES_PER_PAGE = 25
 
-/** One page of `items`. A page past the end is clamped to the last: narrowing the search while
- *  on page 4 lands at the end of the new list, not back at the top. */
+/** One page of `items`, with the count the pager shows. A page past the end is clamped to the
+ *  last: narrowing the search while on page 4 lands at the end of the new list, not back at the
+ *  top. */
 export function paginate<T>(items: readonly T[], requested: number, perPage = ISSUES_PER_PAGE) {
   const total = items.length
   const pages = Math.max(1, Math.ceil(total / perPage))
   const page = Math.min(Math.max(1, Math.floor(requested) || 1), pages)
   const start = (page - 1) * perPage
-  const end = Math.min(start + perPage, total)
-  return {
-    items: items.slice(start, end),
-    page,
-    pages,
-    label: total ? `${start + 1}–${end} of ${total}` : '0 of 0',
-  }
+  return { items: items.slice(start, start + perPage), page, total }
 }
