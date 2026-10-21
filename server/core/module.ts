@@ -1,5 +1,5 @@
-// erratas as a nexitas module: its schema, the ingest route apps report to, and its part of the
-// status line. The owner's sign-in, the /api guard and the projects are the core's.
+// erratas as a nexitas module: its schema, the ingest route apps report to, and what it says about
+// a project. The owner's sign-in, the /api guard and the projects are the core's.
 import type { H3Event } from 'h3'
 import type { NexitasModule } from '#nexitas/shared/modules'
 import { projectAllows } from '#nexitas/server/core/projects'
@@ -44,18 +44,10 @@ export const erratas: NexitasModule = {
   ],
   // Everything erratas serves; switched off, all of it answers 404 and no report is kept.
   paths: ['/errors', '/api/errors', '/v1/errors'],
-  status: (db) => {
-    const unresolved = countUnresolved(db)
-    return [
-      unresolved
-        ? { text: `${unresolved} unresolved`, to: '/errors?q=status:unresolved', tone: 'warning' }
-        : { text: 'nothing unresolved', to: '/errors' },
-    ]
-  },
   projectStatus: (db, projectId) => {
     if (!listStacks(db, projectId).length) return []
     const unresolved = countUnresolved(db, projectId)
-    const to = `/errors?q=${encodeURIComponent(`project:${projectId} status:unresolved`)}`
+    const to = `/p/${projectId}/errors?q=status:unresolved`
     return [
       unresolved
         ? { text: `${unresolved} unresolved`, to, tone: 'warning' }

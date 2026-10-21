@@ -1,16 +1,16 @@
 import type { H3Event } from 'h3'
 import { pacedAnnouncer } from '#nexitas/server/utils/changes'
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
-import { getIssue, getStack } from '../core/issues'
+import { requestProject } from '#nexitas/server/utils/projects'
+import { getIssue } from '../core/issues'
 
-export function routeStack(event: H3Event) {
-  const stack = getStack(nexitasDatabase(), getRouterParam(event, 'id') ?? '')
-  if (!stack) throw createError({ statusCode: 404, statusMessage: 'There is no such stack.' })
-  return stack
-}
-
+/** The issue an /api/p/<id>/errors/issues/<issue> request is for; another project's is not found. */
 export function routeIssue(event: H3Event) {
-  const issue = getIssue(nexitasDatabase(), getRouterParam(event, 'id') ?? '')
+  const issue = getIssue(
+    nexitasDatabase(),
+    requestProject(event).id,
+    getRouterParam(event, 'id') ?? '',
+  )
   if (!issue) throw createError({ statusCode: 404, statusMessage: 'There is no such issue.' })
   return issue
 }

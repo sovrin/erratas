@@ -23,9 +23,9 @@ name and origins); erratas adds:
 ```
 app (browser) ── import /v1/errors.js, init({ dsn })                → the SDK, served here
 app ─────────── POST /v1/errors/<stack>?erratas_key=<key>          → one event, grouped into an issue
-owner ───────── /errors?q=status:unresolved project:sonotas         every issue, searched (signed in)
-              ── /errors/<issue>                                    one issue and its stack trace
-              ── /projects/<project>                                its stacks, DSNs and snippets
+owner ───────── /p/<project>/errors?q=status:unresolved             its issues, searched (signed in)
+              ── /p/<project>/errors/<issue>                         one issue and its stack trace
+              ── /p/<project>                                        its stacks, DSNs and snippets
 ```
 
 The DSN is Sentry's shape, `https://<key>@<host>/<stack>`. It is public by design: it ships inside
@@ -41,8 +41,8 @@ resolved issue that recurs reopens; an ignored one stays ignored.
 
 ### Search
 
-Free text matches an issue's title and culprit; `key:value` narrows: `status`, `level`, `project`,
-`stack`, `env`, `release`. Values match as substrings (`release:v2.4` finds `v2.4.1`), `status` and
+Free text matches an issue's title and culprit; `key:value` narrows: `status`, `level`, `stack`,
+`env`, `release`. Values match as substrings (`release:v2.4` finds `v2.4.1`), `status` and
 `level` by prefix. Every token must match. The search lives in the address, so a project's status
 links and an issue's properties open the list narrowed.
 
@@ -60,14 +60,15 @@ The wire format is a contract with every SDK already shipped: one JSON event per
 ## Admin API
 
 The pages use it, under the owner's session; writes come from nexitas' own origin, like every `/api`
-route. All paths start with `/api/errors`.
+route. All paths are a project's and start with `/api/p/<project>/errors`; another project's issue
+or stack is not found.
 
-| Request                                    | Does                                                         |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| `GET /`                                    | Every issue, newest first, without stack traces              |
-| `GET · POST /issues/:id` · `POST …/delete` | Read with its trace · set `{ status }` · delete              |
-| `GET /stacks?project=` · `POST /stacks`    | A project's stacks · add one `{ projectId, name, platform }` |
-| `POST /stacks/:id/delete`                  | Delete a stack and its issues                                |
+| Request                                    | Does                                                |
+| ------------------------------------------ | --------------------------------------------------- |
+| `GET /`                                    | The project's issues, newest first, without traces  |
+| `GET · POST /issues/:id` · `POST …/delete` | Read with its trace · set `{ status }` · delete     |
+| `GET · POST /stacks`                       | The project's stacks · add one `{ name, platform }` |
+| `POST /stacks/:id/delete`                  | Delete a stack and its issues                       |
 
 Deleting a project in nexitas deletes its stacks and issues with it.
 

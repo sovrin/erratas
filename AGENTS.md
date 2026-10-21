@@ -30,9 +30,11 @@ when a feature is proposed, the first question is whether it can be left out.
 - **The wire is frozen** (`packages/sdk/src/dsn.ts`, `transport.ts`): released SDKs live in other
   people's apps, so ingest keeps accepting every shape it ever accepted. `v` on every payload; bump
   it for an incompatible shape, and branch on it in ingest.
-- `/api/errors/*` is the owner's (nexitas' security middleware). Ingest, `/v1/errors/<stack>`, is
-  public through `publicRoutes`: the key is the credential, browsers only from the project's
-  origins, a per-sender limit. The DSN is public; never let it read anything.
+- `/api/p/<project>/errors/*` is the owner's (nexitas' security middleware), which finds the
+  project; handlers take it with `requestProject(event)`, pages with `useProject()`, and every
+  query is scoped by it. Ingest, `/v1/errors/<stack>`, is public through `publicRoutes`: the key is
+  the credential, browsers only from the project's origins, a per-sender limit. The DSN is public;
+  never let it read anything.
 - The pages are live: whatever changes what they show calls `announceChange()` (ingest, which can
   come all the time, `announceReport()`), and every view that shows data passes its refresh to
   `useLive`.

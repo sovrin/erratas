@@ -11,7 +11,6 @@ type TagResolver = (issue: Issue) => string
 
 /** The searchable dimensions, with aliases: people type `env` and `environment`. */
 export const TAG_RESOLVERS: Readonly<Record<string, TagResolver>> = {
-  project: (issue) => issue.projectId,
   stack: (issue) => issue.stackName,
   env: (issue) => issue.environment,
   environment: (issue) => issue.environment,
@@ -22,7 +21,7 @@ export const TAG_RESOLVERS: Readonly<Record<string, TagResolver>> = {
 }
 
 /** The dimensions as the search box names them, aliases left out. */
-export const SEARCH_KEYS = ['status', 'level', 'project', 'stack', 'env', 'release']
+export const SEARCH_KEYS = ['status', 'level', 'stack', 'env', 'release']
 
 /** Matched by prefix, not substring: `'unresolved'.includes('resolved')`, so substring matching
  *  answered `status:resolved` with every unresolved issue. Prefix still lets `level:err` reach

@@ -40,7 +40,6 @@ export interface Stack {
  *  running total; the environment and release are the most recent ones seen. */
 export interface Issue {
   id: string
-  projectId: string
   stackId: string
   stackName: string
   title: string
@@ -64,7 +63,6 @@ export interface IssueDetail extends Issue {
  *  the old one, and a move would carry its issues along. */
 export const newStackSchema = z
   .object({
-    projectId: z.string().min(1).max(64),
     name: z.string().trim().min(1, 'Give the stack a name.').max(60),
     platform: z.string().trim().max(40),
   })

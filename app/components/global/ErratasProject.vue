@@ -11,12 +11,15 @@ const {
   data: stacks,
   error,
   refresh,
-} = await useFetch<Stack[]>('/api/errors/stacks', {
-  query: { project: props.project.id },
+} = await useFetch<Stack[]>(`/api/p/${props.project.id}/errors/stacks`, {
   key: `erratas-stacks-${props.project.id}`,
 })
 useLive(refresh)
 const origin = useRequestURL().origin
+/** What erratas says about this project, as the overview shows it. */
+const status = computed(
+  () => props.project.status.find((entry) => entry.module === 'erratas')?.items ?? [],
+)
 
 const name = ref('')
 const platform = ref('')
@@ -26,9 +29,9 @@ async function add() {
   pending.value = true
   addError.value = ''
   try {
-    await $fetch('/api/errors/stacks', {
+    await $fetch(`/api/p/${props.project.id}/errors/stacks`, {
       method: 'POST',
-      body: { projectId: props.project.id, name: name.value, platform: platform.value },
+      body: { name: name.value, platform: platform.value },
     })
     name.value = ''
     platform.value = ''
@@ -46,7 +49,10 @@ const removeError = ref('')
 async function remove() {
   removeError.value = ''
   try {
-    await $fetch(`/api/errors/stacks/${removing.value!.id}/delete`, { method: 'POST', body: {} })
+    await $fetch(`/api/p/${props.project.id}/errors/stacks/${removing.value!.id}/delete`, {
+      method: 'POST',
+      body: {},
+    })
     await refresh()
   } catch (cause) {
     removeError.value = errorMessage(cause)
@@ -61,10 +67,10 @@ async function remove() {
       <div><strong>Could not load its stacks.</strong> {{ errorMessage(error) }}</div>
     </div>
     <template v-else-if="stacks">
-      <p v-if="stacks.length" class="text-s">
-        <NuxtLink :to="{ path: '/errors', query: { q: `project:${project.id}` } }" class="link"
-          >Its issues</NuxtLink
-        >
+      <!-- The figure first, as every panel leads with one; the setup folds away below it. -->
+      <p v-if="stacks.length" class="cluster gap-3 text-s">
+        <StatusItems :items="status" />
+        <NuxtLink :to="`/p/${project.id}/errors`" class="link">Its issues</NuxtLink>
       </p>
       <p v-else class="text-s text-muted">
         Reports what breaks in its apps. Add a stack for each runtime, such as the site and its API,
@@ -74,7 +80,7 @@ async function remove() {
       <section
         v-for="stack in stacks"
         :key="stack.id"
-        class="stack gap-2 hairline-b pb-4"
+        class="stack gap-2 hairline-b pb-3"
         :aria-label="`Stack ${stack.name}`"
       >
         <div class="cluster gap-3">
@@ -90,9 +96,12 @@ async function remove() {
             Remove
           </button>
         </div>
-        <EmbedCode
-          :code="snippetFor(stack.platform, buildDsn(origin, stack.publicKey, stack.id), origin)"
-        />
+        <details>
+          <summary class="text-s">Install, with its DSN</summary>
+          <EmbedCode
+            :code="snippetFor(stack.platform, buildDsn(origin, stack.publicKey, stack.id), origin)"
+          />
+        </details>
         <details>
           <summary class="text-s">Send a test event</summary>
           <EmbedCode :code="testEventCommand(buildIngestUrl(origin, stack.publicKey, stack.id))" />

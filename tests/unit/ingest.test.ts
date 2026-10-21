@@ -15,6 +15,8 @@ import {
 import {
   countUnresolved,
   createStack,
+  deleteIssue,
+  deleteStack,
   getIssue,
   listIssues,
   recordEvent,
@@ -226,8 +228,7 @@ describe('recordEvent', () => {
     const id = record(anEvent({ environment: 'production', release: 'v1' }))
     expect(record(anEvent(), NOW + 1000)).toBe(id)
     expect(record(thrownFrom('https://app.example/other.js'))).not.toBe(id)
-    expect(getIssue(db, id)).toMatchObject({
-      projectId: 'sonotas',
+    expect(getIssue(db, 'sonotas', id)).toMatchObject({
       stackName: 'frontend',
       count: 2,
       status: 'unresolved',
@@ -238,7 +239,7 @@ describe('recordEvent', () => {
       release: 'v1',
     })
     expect(stack.publicKey).toMatch(/^[0-9a-f]{32}$/)
-    expect(listIssues(db)).toHaveLength(2)
+    expect(listIssues(db, 'sonotas')).toHaveLength(2)
   })
 
   // An offline client flushing its queue must not drag a live issue back in time.
@@ -246,36 +247,48 @@ describe('recordEvent', () => {
     const { db, record } = setup()
     const id = record(anEvent({ release: 'v2' }))
     record(anEvent({ release: 'v1', timestamp: '2026-08-01T00:00:00.000Z' }))
-    expect(getIssue(db, id)).toMatchObject({ count: 2, lastSeen: NOW, release: 'v2' })
+    expect(getIssue(db, 'sonotas', id)).toMatchObject({ count: 2, lastSeen: NOW, release: 'v2' })
   })
 
   it('keeps the last stack trace when a report has none', () => {
     const { db, record } = setup()
     const id = record({ v: 1, message: 'boom' })
-    expect(getIssue(db, id)!.frames).toEqual([])
+    expect(getIssue(db, 'sonotas', id)!.frames).toEqual([])
     const traced = record(anEvent())
-    expect(getIssue(db, traced)!.frames).toHaveLength(1)
+    expect(getIssue(db, 'sonotas', traced)!.frames).toHaveLength(1)
   })
 
   it('reopens a resolved issue that recurs, but not an ignored one', () => {
     const { db, record } = setup()
     const resolved = record(anEvent())
-    setIssueStatus(db, resolved, 'resolved')
+    setIssueStatus(db, 'sonotas', resolved, 'resolved')
     record(anEvent(), NOW + 1000)
-    expect(getIssue(db, resolved)!.status).toBe('unresolved')
+    expect(getIssue(db, 'sonotas', resolved)!.status).toBe('unresolved')
 
     const ignored = record({ v: 1, message: 'noise' })
-    setIssueStatus(db, ignored, 'ignored')
+    setIssueStatus(db, 'sonotas', ignored, 'ignored')
     record({ v: 1, message: 'noise' }, NOW + 1000)
-    expect(getIssue(db, ignored)!.status).toBe('ignored')
+    expect(getIssue(db, 'sonotas', ignored)!.status).toBe('ignored')
     expect(countUnresolved(db, 'sonotas')).toBe(1)
+  })
+
+  // Every read and write of one issue or stack is the project's: another's is not found.
+  it("keeps one project out of another's issues and stacks", () => {
+    const { db, stack, record } = setup()
+    const id = record(anEvent())
+    createProject(db, { id: 'other', name: 'other', origins: [] })
+    expect(getIssue(db, 'other', id)).toBeNull()
+    setIssueStatus(db, 'other', id, 'resolved')
+    deleteIssue(db, 'other', id)
+    expect(deleteStack(db, 'other', stack.id)).toBe(false)
+    expect(getIssue(db, 'sonotas', id)!.status).toBe('unresolved')
   })
 
   it('goes with its project', () => {
     const { db, record } = setup()
     record(anEvent())
     deleteProject(db, 'sonotas', [erratas])
-    expect(listIssues(db)).toEqual([])
-    expect(countUnresolved(db)).toBe(0)
+    expect(listIssues(db, 'sonotas')).toEqual([])
+    expect(countUnresolved(db, 'sonotas')).toBe(0)
   })
 })

@@ -19,7 +19,6 @@ const HOUR = 60 * 60 * 1000
 
 const anIssue = (overrides: Partial<Issue> = {}): Issue => ({
   id: 'i1',
-  projectId: 'sonotas',
   stackId: 's1',
   stackName: 'frontend',
   title: "TypeError: Cannot read properties of undefined (reading 'map')",
@@ -67,8 +66,6 @@ describe('search', () => {
     ['level:err', true],
     ['level:warning', false],
     ['stack:front', true],
-    ['project:sonotas', true],
-    ['project:other', false],
   ])('resolves %s to %s', (raw, expected) => {
     expect(match(raw)).toBe(expected)
   })

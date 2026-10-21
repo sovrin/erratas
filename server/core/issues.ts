@@ -54,8 +54,11 @@ export function createStack(
   return getStack(db, id)!
 }
 
-export function deleteStack(db: DatabaseSync, id: string) {
-  db.prepare('DELETE FROM stacks WHERE id = ?').run(id)
+/** Whether the project had the stack to delete. */
+export function deleteStack(db: DatabaseSync, projectId: string, id: string) {
+  return (
+    db.prepare('DELETE FROM stacks WHERE id = ? AND project_id = ?').run(id, projectId).changes > 0
+  )
 }
 
 /** Everything erratas keeps for a project: its stacks, and with them their issues. */
@@ -67,7 +70,6 @@ export function deleteProjectStacks(db: DatabaseSync, projectId: string) {
 
 interface IssueRow {
   id: string
-  project_id: string
   stack_id: string
   stack_name: string
   title: string
@@ -82,12 +84,11 @@ interface IssueRow {
   frames?: string
 }
 
-const ISSUE_COLUMNS = `i.id, s.project_id, i.stack_id, s.name AS stack_name, i.title, i.culprit,
+const ISSUE_COLUMNS = `i.id, i.stack_id, s.name AS stack_name, i.title, i.culprit,
   i.level, i.status, i.count, i.first_seen, i.last_seen, i.environment, i.release`
 
 const toIssue = (row: IssueRow): Issue => ({
   id: row.id,
-  projectId: row.project_id,
   stackId: row.stack_id,
   stackName: row.stack_name,
   title: row.title,
@@ -101,47 +102,57 @@ const toIssue = (row: IssueRow): Issue => ({
   release: row.release,
 })
 
-/** Every issue, without its stack trace: the list filters and pages them in the browser.
+/** A project's issues, without their stack traces: the list filters and pages them in the browser.
  *  shortcut: fine for a few thousand issues; past that, search and page in SQL. */
-export function listIssues(db: DatabaseSync): Issue[] {
+export function listIssues(db: DatabaseSync, projectId: string): Issue[] {
   return (
     db
       .prepare(
         `SELECT ${ISSUE_COLUMNS} FROM issues i JOIN stacks s ON s.id = i.stack_id
-        ORDER BY i.last_seen DESC`,
+        WHERE s.project_id = ? ORDER BY i.last_seen DESC`,
       )
-      .all() as unknown as IssueRow[]
+      .all(projectId) as unknown as IssueRow[]
   ).map(toIssue)
 }
 
-export function getIssue(db: DatabaseSync, id: string): IssueDetail | null {
+export function getIssue(db: DatabaseSync, projectId: string, id: string): IssueDetail | null {
   const row = db
     .prepare(
       `SELECT ${ISSUE_COLUMNS}, i.frames FROM issues i JOIN stacks s ON s.id = i.stack_id
-      WHERE i.id = ?`,
+      WHERE i.id = ? AND s.project_id = ?`,
     )
-    .get(id) as IssueRow | undefined
+    .get(id, projectId) as IssueRow | undefined
   return row ? { ...toIssue(row), frames: JSON.parse(row.frames!) as DisplayFrame[] } : null
 }
 
-export function setIssueStatus(db: DatabaseSync, id: string, status: IssueStatus) {
-  db.prepare('UPDATE issues SET status = ? WHERE id = ?').run(status, id)
+// A project's issue is one under one of its stacks.
+const IN_PROJECT = 'stack_id IN (SELECT id FROM stacks WHERE project_id = ?)'
+
+export function setIssueStatus(
+  db: DatabaseSync,
+  projectId: string,
+  id: string,
+  status: IssueStatus,
+) {
+  db.prepare(`UPDATE issues SET status = ? WHERE id = ? AND ${IN_PROJECT}`).run(
+    status,
+    id,
+    projectId,
+  )
 }
 
-export function deleteIssue(db: DatabaseSync, id: string) {
-  db.prepare('DELETE FROM issues WHERE id = ?').run(id)
+export function deleteIssue(db: DatabaseSync, projectId: string, id: string) {
+  db.prepare(`DELETE FROM issues WHERE id = ? AND ${IN_PROJECT}`).run(id, projectId)
 }
 
-/** Unresolved issues, everywhere or in one project. */
-export function countUnresolved(db: DatabaseSync, projectId?: string) {
-  const where = projectId ? 'AND s.project_id = ?' : ''
+export function countUnresolved(db: DatabaseSync, projectId: string) {
   return (
     db
       .prepare(
         `SELECT COUNT(*) AS n FROM issues i JOIN stacks s ON s.id = i.stack_id
-        WHERE i.status = 'unresolved' ${where}`,
+        WHERE i.status = 'unresolved' AND s.project_id = ?`,
       )
-      .get(...(projectId ? [projectId] : [])) as { n: number }
+      .get(projectId) as { n: number }
   ).n
 }
 
