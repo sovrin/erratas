@@ -1,4 +1,4 @@
-// Turning every issue into the rows on screen: the search, the summary line, paging and ages.
+// Turning every issue into the rows on screen: the search, the summary line and paging.
 // Plain functions over plain data, so all of it is tested without a database or a browser.
 import type { Issue } from './contracts'
 
@@ -125,22 +125,4 @@ export function paginate<T>(items: readonly T[], requested: number, perPage = IS
     pages,
     label: total ? `${start + 1}–${end} of ${total}` : '0 of 0',
   }
-}
-
-// ── Ages
-
-/** "now", "12m", "3h", "9d": rounded down, since 59 minutes is not "1h" to someone looking for
- *  what is on fire. A clock ahead of this one reads as now. */
-export function formatAge(at: number, now: number) {
-  const age = Math.max(0, now - at)
-  if (age < 60_000) return 'now'
-  if (age < 3_600_000) return `${Math.floor(age / 60_000)}m`
-  if (age < DAY) return `${Math.floor(age / 3_600_000)}h`
-  return `${Math.floor(age / DAY)}d`
-}
-
-/** The same, in a sentence: "9d ago". */
-export function formatAgeAgo(at: number, now: number) {
-  const age = formatAge(at, now)
-  return age === 'now' ? age : `${age} ago`
 }

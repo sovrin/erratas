@@ -23,24 +23,18 @@ const status = computed(
 
 const name = ref('')
 const platform = ref('')
-const pending = ref(false)
-const addError = ref('')
+const { pending, error: addError, issues, fieldError, submit } = useSubmit()
 async function add() {
-  pending.value = true
-  addError.value = ''
-  try {
-    await $fetch(`/api/p/${props.project.id}/errors/stacks`, {
+  const added = await submit(() =>
+    $fetch<Stack>(`/api/p/${props.project.id}/errors/stacks`, {
       method: 'POST',
       body: { name: name.value, platform: platform.value },
-    })
-    name.value = ''
-    platform.value = ''
-    await refresh()
-  } catch (cause) {
-    addError.value = errorMessage(cause)
-  } finally {
-    pending.value = false
-  }
+    }),
+  )
+  if (!added) return
+  name.value = ''
+  platform.value = ''
+  await refresh()
 }
 
 const removing = ref<Stack>()
@@ -90,7 +84,10 @@ async function remove() {
           }}</span>
           <button
             type="button"
-            class="link text-s text-danger end"
+            class="btn end"
+            data-size="s"
+            data-variant="ghost"
+            data-tone="danger"
             @click="((removing = stack), (removeOpen = true))"
           >
             Remove
@@ -127,7 +124,9 @@ async function remove() {
             maxlength="60"
             placeholder="frontend"
             autocomplete="off"
+            :aria-invalid="!!fieldError('name') || undefined"
           />
+          <span v-if="fieldError('name')" data-error>{{ fieldError('name') }}</span>
         </div>
         <div class="field">
           <label :for="`stack-platform-${project.id}`">Platform</label>
@@ -140,7 +139,9 @@ async function remove() {
             placeholder="browser or node"
             autocomplete="off"
             spellcheck="false"
+            :aria-invalid="!!fieldError('platform') || undefined"
           />
+          <span v-if="fieldError('platform')" data-error>{{ fieldError('platform') }}</span>
         </div>
         <button
           type="submit"
@@ -152,9 +153,7 @@ async function remove() {
           Add a stack
         </button>
       </form>
-      <div v-if="addError" class="alert" data-tone="danger" role="alert">
-        <div><strong>Could not add the stack.</strong> {{ addError }}</div>
-      </div>
+      <FormIssues :error="addError" :issues="issues" failed="Could not add the stack." />
     </template>
 
     <ConfirmDialog

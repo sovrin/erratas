@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { ingestUrl, parseDsn } from '../../packages/sdk/src/dsn'
 import type { Issue } from '../../shared/contracts'
 import {
-  formatAge,
-  formatAgeAgo,
   matchesSearchQuery,
   paginate,
   parseSearchQuery,
@@ -152,25 +150,6 @@ describe('paginate', () => {
 
   it('never says page 0 of 0', () => {
     expect(paginate([], 1)).toMatchObject({ page: 1, pages: 1, label: '0 of 0' })
-  })
-})
-
-describe('formatAge', () => {
-  it.each([
-    [0, 'now'],
-    [59_000, 'now'],
-    [59 * 60_000, '59m'],
-    [119 * 60_000, '1h'],
-    [23 * HOUR, '23h'],
-    [9 * 24 * HOUR, '9d'],
-    [-60_000, 'now'],
-  ])('renders %ims as %s', (age, expected) => {
-    expect(formatAge(NOW - age, NOW)).toBe(expected)
-  })
-
-  it('says "ago" only for a real age', () => {
-    expect(formatAgeAgo(NOW - 9 * 24 * HOUR, NOW)).toBe('9d ago')
-    expect(formatAgeAgo(NOW, NOW)).toBe('now')
   })
 })
 

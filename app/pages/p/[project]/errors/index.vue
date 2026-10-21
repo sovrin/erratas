@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { errorMessage } from '#nexitas/app/lib/format'
+import { errorMessage, formatAge, formatCount } from '#nexitas/app/lib/format'
 import type { Issue, Stack } from '../../../../../shared/contracts'
 import {
   SEARCH_KEYS,
-  formatAge,
-  formatAgeAgo,
   paginate,
   parseSearchQuery,
   selectIssues,
@@ -20,7 +18,7 @@ const project = useProject().id.value
 const route = useRoute()
 const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
 const requestedPage = computed(() => Number(route.query.page) || 1)
-useHead({ title: `Errors · ${useRuntimeConfig().public.nexitas.name}` })
+useHead({ title: `Errors · ${project}` })
 const { data: issues, error, refresh } = await useFetch<Issue[]>(`/api/p/${project}/errors`)
 // Without a stack nothing can report, which the empty list says instead of "nothing yet".
 const { data: stacks, refresh: refreshStacks } = await useFetch<Stack[]>(
@@ -74,11 +72,11 @@ const search = () => navigateTo(board({ q: searchText.value.trim() }))
           >
           <span v-else>nothing unresolved</span>
           <span class="tabular">{{ summary.newIn24h }} new in 24h</span>
-          <span class="tabular">{{ summary.events.toLocaleString('en-GB') }} events</span>
+          <span class="tabular">{{ formatCount(summary.events) }} events</span>
           <span>{{
             summary.lastEventAt === null
               ? 'nothing reported yet'
-              : `last event ${formatAgeAgo(summary.lastEventAt, now)}`
+              : `last event ${formatAge(summary.lastEventAt, now)}`
           }}</span>
         </p>
       </div>
@@ -87,7 +85,6 @@ const search = () => navigateTo(board({ q: searchText.value.trim() }))
           v-model="searchText"
           class="input font-mono text-s"
           data-size="s"
-          style="inline-size: min(100%, 20rem)"
           type="search"
           maxlength="200"
           placeholder="status:unresolved"
@@ -121,29 +118,28 @@ const search = () => navigateTo(board({ q: searchText.value.trim() }))
           <TransitionGroup :key="`${q}|${page.page}`" tag="tbody" name="row" class="relative">
             <tr v-for="issue in page.items" :key="issue.id">
               <td>
-                <span class="cluster gap-3 flex-nowrap items-baseline">
+                <span class="stack gap-1 min-w-0">
                   <!-- Resolved and ignored recede: the list shows what still needs doing. -->
-                  <span
-                    class="dot"
-                    :data-tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
-                    aria-hidden="true"
-                  ></span>
-                  <span class="stack gap-1 min-w-0">
-                    <NuxtLink
-                      :to="`/p/${project}/errors/${issue.id}`"
-                      class="link break-words"
-                      :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
-                      >{{ issue.title }}</NuxtLink
-                    >
-                    <span class="font-mono text-xs text-muted break-words"
-                      >{{ issue.stackName
-                      }}{{ issue.status === 'unresolved' ? '' : ` · ${issue.status}` }}</span
-                    >
+                  <NuxtLink
+                    :to="`/p/${project}/errors/${issue.id}`"
+                    class="link break-words"
+                    :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
+                    >{{ issue.title }}</NuxtLink
+                  >
+                  <span class="cluster gap-2 text-xs text-muted">
+                    <span
+                      class="dot"
+                      :data-tone="
+                        issue.status === 'unresolved' ? levelTones[issue.level] : undefined
+                      "
+                      aria-hidden="true"
+                    ></span>
+                    <span>{{ issue.level }}, {{ issue.status }}</span>
+                    <span class="font-mono break-words">{{ issue.stackName }}</span>
                   </span>
-                  <span class="sr-only">{{ issue.level }}, {{ issue.status }}</span>
                 </span>
               </td>
-              <td data-num>{{ issue.count.toLocaleString('en-GB') }}</td>
+              <td data-num>{{ formatCount(issue.count) }}</td>
               <td data-num class="text-muted">
                 <time :datetime="new Date(issue.lastSeen).toISOString()">{{
                   formatAge(issue.lastSeen, now)

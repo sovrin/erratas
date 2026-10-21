@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { errorMessage } from '#nexitas/app/lib/format'
+import { errorMessage, formatAge, plural } from '#nexitas/app/lib/format'
 import type { IssueDetail, IssueStatus } from '../../../../../shared/contracts'
-import { formatAgeAgo } from '../../../../../shared/issues'
 import { levelTones } from '../../../../lib/issues'
 
 // One issue at its own address, which is what people paste to each other: where it happens, its
@@ -10,7 +9,7 @@ const project = useProject().id.value
 const id = useRoute().params.id as string
 const list = `/p/${project}/errors`
 const api = `/api/p/${project}/errors/issues/${id}`
-useHead({ title: `Issue · ${useRuntimeConfig().public.nexitas.name}` })
+useHead({ title: `Issue · ${project}` })
 const { data: issue, error, refresh } = await useFetch<IssueDetail>(api)
 useLive(refresh)
 const now = ref(Date.now())
@@ -24,9 +23,11 @@ const narrowed = (key: string, value: string) => ({
 
 const pending = ref(false)
 const actionError = ref('')
+const actionFailed = ref('')
 async function setStatus(status: IssueStatus) {
   pending.value = true
   actionError.value = ''
+  actionFailed.value = 'Could not change its status.'
   try {
     issue.value = await $fetch<IssueDetail>(api, {
       method: 'POST',
@@ -42,6 +43,7 @@ async function setStatus(status: IssueStatus) {
 const deleteOpen = ref(false)
 async function remove() {
   actionError.value = ''
+  actionFailed.value = 'Could not delete the issue.'
   try {
     await $fetch(`${api}/delete`, { method: 'POST', body: {} })
     await navigateTo(list)
@@ -81,9 +83,8 @@ async function remove() {
             ></span>
             <span>{{ issue.level }}, {{ issue.status }}</span>
             <span class="tabular"
-              >· {{ issue.count.toLocaleString('en-GB') }}
-              {{ issue.count === 1 ? 'event' : 'events' }}, last seen
-              {{ formatAgeAgo(issue.lastSeen, now) }}</span
+              >· {{ plural(issue.count, 'event') }}, last seen
+              {{ formatAge(issue.lastSeen, now) }}</span
             >
           </p>
         </div>
@@ -140,7 +141,9 @@ async function remove() {
           : 'A resolved issue reopens when it happens again.'
       }}</small>
       <div v-if="actionError" class="alert" data-tone="danger" role="alert">
-        <div><strong>That did not work.</strong> {{ actionError }}</div>
+        <div>
+          <strong>{{ actionFailed }}</strong> {{ actionError }}
+        </div>
       </div>
 
       <!-- The trace takes the room; where it happens sits beside it. -->
@@ -192,7 +195,7 @@ async function remove() {
             <dt>First seen</dt>
             <dd>
               <time :datetime="new Date(issue.firstSeen).toISOString()">{{
-                formatAgeAgo(issue.firstSeen, now)
+                formatAge(issue.firstSeen, now)
               }}</time>
             </dd>
             <template v-if="issue.culprit">

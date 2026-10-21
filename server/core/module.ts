@@ -2,7 +2,7 @@
 // a project. The owner's sign-in, the /api guard and the projects are the core's.
 import type { H3Event } from 'h3'
 import type { NexitasModule } from '#nexitas/shared/modules'
-import { projectAllows } from '#nexitas/server/core/projects'
+import { projectCors } from '#nexitas/server/utils/cors'
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
 import { MAX_EVENT_BYTES } from './ingest'
 import { countUnresolved, deleteProjectStacks, getStack, listStacks } from './issues'
@@ -58,23 +58,11 @@ export const erratas: NexitasModule = {
 }
 
 /** A browser may report only from one of the project's own origins, and then gets CORS for it;
- *  a server sends no Origin and is let through to the key check. Preflights are answered here,
- *  though the SDK's text/plain post needs none. */
+ *  a server sends no Origin and is let through to the key check. */
 function cors(event: H3Event, match: RegExpExecArray | null) {
-  const origin = getHeader(event, 'origin')
-  if (!origin) return
-  const db = nexitasDatabase()
-  const stack = getStack(db, match?.[1] ?? '')
-  if (!stack || !projectAllows(db, stack.projectId, origin))
-    throw createError({ statusCode: 403, statusMessage: 'This site may not report to this stack.' })
-  setHeaders(event, { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' })
-  if (event.method === 'OPTIONS') {
-    setHeaders(event, {
-      'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Headers': 'content-type',
-      'Access-Control-Max-Age': '600',
-    })
-    setResponseStatus(event, 204)
-    return ''
-  }
+  return projectCors(event, getStack(nexitasDatabase(), match?.[1] ?? '')?.projectId, {
+    methods: 'POST',
+    refusal: 'This site may not report to this stack.',
+    originless: true,
+  })
 }

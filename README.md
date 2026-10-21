@@ -89,6 +89,9 @@ switch Errors on, at setup or under Modules. Add a project with a stack, then se
 or run `pnpm debug` here: a page on its own origin (`:3001`, add it to the project's sites) that
 throws every kind of error through the SDK and shows what left the browser.
 
+Two SDK builds: `pnpm build:sdk` bundles the browser script nexitas serves (`public/v1/errors.js`),
+`pnpm sdk:build` builds the `@erratas/sdk` package itself (`packages/sdk/dist`).
+
 ## In an install
 
 erratas runs wherever nexitas does: see nexitas' README for Compose, the proxy and the settings.

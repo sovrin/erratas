@@ -16,7 +16,7 @@ when a feature is proposed, the first question is whether it can be left out.
   around this layer. Nothing app-wide lives here: no name, logo, favicon or sign-in lines.
 - Keep comprehension debt low: explicit control flow, small modules, framework conventions, no
   speculative abstractions. Comments say why, not what.
-- Rules worth testing are plain functions: `shared/issues.ts` (search, summary, paging, ages),
+- Rules worth testing are plain functions: `shared/issues.ts` (search, summary, paging),
   `shared/setup.ts` (DSN, snippets, test command), `server/core/ingest.ts` (parsing and grouping).
   Input checks for the admin API are zod, in `shared/contracts.ts`.
 - Data access is plain SQL in `server/core/*.ts`: functions that take the database first, no ORM.
@@ -49,11 +49,8 @@ browser entry is bundled to `public/v1/errors.js` (`pnpm build:sdk`) by every ne
 
 ## UI
 
-- Built only from aequitas: semantic HTML plus its classes, `data-*` variants and ARIA state.
-- The look: nexitas' shell; inside a page, compact density, square corners, no cards, panels or
-  sidebar. Colour only reports state, always next to a word. Ids, DSNs, frames and source are mono.
-  Text actions first, at most one primary button per view.
-- Lint changed Vue files: `node ../aequitas/dist/aequitas-check.mjs --css ../nexitas/app/assets/nexitas.css <files>`.
+nexitas' UI rules apply as they are (`../nexitas/AGENTS.md`, "UI"). erratas' own: ids, DSNs, frames
+and source are mono; a stack trace or a title is a stranger's text, shown as text, never as markup.
 
 ## Checks
 
