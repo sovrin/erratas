@@ -1,0 +1,23 @@
+name: release-please
+
+# Keeps a release PR open that bumps package.json, writes CHANGELOG.md from
+# the conventional commits since the last release, and tags vX.Y.Z on merge.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  issues: write # the "autorelease" labels
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # A PR opened with GITHUB_TOKEN triggers no workflows, so ci would
+          # skip the release PR; the PAT gets it checked. Falls back to
+          # GITHUB_TOKEN until the secret exists.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}

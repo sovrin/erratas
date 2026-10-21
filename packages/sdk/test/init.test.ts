@@ -60,7 +60,7 @@ describe('init', () => {
     // takes when it is being torn down.
     expect(navigator.sendBeacon).toHaveBeenCalledOnce()
     const [url, blob] = vi.mocked(navigator.sendBeacon).mock.calls[0]!
-    expect(String(url)).toContain('/api/1/store/')
+    expect(String(url)).toContain('/v1/errors/1')
     expect(blob).toBeInstanceOf(Blob)
   })
 })

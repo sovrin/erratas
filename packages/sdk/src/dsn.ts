@@ -70,16 +70,16 @@ export function parseDsn(raw: string): Dsn {
 }
 
 /**
- * Where events are POSTed.
+ * Where events are POSTed: a public route of the erratas module in nexitas.
  *
- * The shape is fixed forever the moment an SDK ships: released versions sit in
+ * The shape is fixed the moment an SDK ships: released versions sit in
  * applications that will never be updated, so this URL can be added to but not
  * changed. The stack id is in the path (cheap to route on, and it is public
  * anyway) and the key is in the *query string* — deliberately, see below.
  */
 export function ingestUrl(dsn: Dsn): string {
   const host = dsn.port ? `${dsn.host}:${dsn.port}` : dsn.host
-  const base = `${dsn.protocol}://${host}${dsn.pathPrefix}/api/${dsn.stackId}/store/`
+  const base = `${dsn.protocol}://${host}${dsn.pathPrefix}/v1/errors/${dsn.stackId}`
 
   // The key rides in the query string rather than in an Authorization or
   // X-Erratas-Key header for two reasons, both of which are about the browser

@@ -17,6 +17,16 @@ init({ dsn: 'https://8f2ac1e9b7d4@erratas.sh/1' })
 That is the whole setup. From then on, uncaught errors and unhandled promise
 rejections are reported on their own.
 
+In a browser, the instance also serves this entry as one module, so a page needs
+no install or build step:
+
+```html
+<script type="module">
+  import { init } from 'https://nexitas.example.com/v1/errors.js'
+  init({ dsn: 'https://8f2ac1e9b7d4@nexitas.example.com/a1b2c3d4e5f6' })
+</script>
+```
+
 Report something you caught yourself:
 
 ```ts
@@ -84,7 +94,7 @@ flush()
 
 ## The wire
 
-One `POST` per event to `{dsn.host}/api/{stackId}/store/?erratas_key=…`.
+One `POST` per event to `{dsn.host}/v1/errors/{stackId}?erratas_key=…`.
 
 The body is JSON, sent as `content-type: text/plain` — deliberately. That is a
 CORS-safelisted value, so a cross-origin report does not trigger an `OPTIONS`
@@ -99,7 +109,7 @@ rather than the SDK being expected to update.
 ## Develop
 
 ```bash
-npm test                  # from the repo root
-npm run sdk:typecheck
-npm run sdk:build
+pnpm test                 # from the repo root
+pnpm typecheck
+pnpm sdk:build
 ```
