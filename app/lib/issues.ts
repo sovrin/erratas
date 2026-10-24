@@ -6,3 +6,6 @@ export const levelTones: Record<IssueLevel, 'danger' | 'warning' | 'info'> = {
   warning: 'warning',
   info: 'info',
 }
+
+/** The key the project's issue list is fetched under, so an issue's page can refresh it. */
+export const issuesKey = (project: string) => `erratas-issues-${project}`

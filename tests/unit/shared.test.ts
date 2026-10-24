@@ -6,6 +6,7 @@ import {
   matchesSearchQuery,
   paginate,
   parseSearchQuery,
+  searchOrDefault,
   selectIssues,
   setSearchToken,
   summarise,
@@ -47,6 +48,14 @@ describe('search', () => {
   it('ignores a half-typed token, without weakening the others', () => {
     expect(match('env:')).toBe(true)
     expect(match('status:resolved env:')).toBe(false)
+  })
+
+  it('opens on unresolved, and status:all lifts the status filter', () => {
+    const resolved = anIssue({ status: 'resolved' })
+    expect(match(searchOrDefault(''), resolved)).toBe(false)
+    expect(match(searchOrDefault(' '), anIssue())).toBe(true)
+    expect(match(searchOrDefault('status:all'), resolved)).toBe(true)
+    expect(parseSearchQuery('status:ALL env:prod').tags.map((tag) => tag.key)).toEqual(['env'])
   })
 
   it('matches free text against the title and culprit', () => {
@@ -92,6 +101,9 @@ describe('search', () => {
       'old',
     ])
     expect(issues.map((issue) => issue.id)).toEqual(['old', 'new', 'other'])
+    expect(
+      selectIssues(issues, parseSearchQuery('env:prod'), 'other').map((issue) => issue.id),
+    ).toEqual(['other', 'new', 'old'])
   })
 })
 

@@ -5,7 +5,7 @@ import type { NexitasModule } from '#nexitas/shared/modules'
 import { projectCors } from '#nexitas/server/utils/cors'
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
 import { MAX_EVENT_BYTES } from './ingest'
-import { countUnresolved, deleteProjectStacks, getStack, listStacks } from './issues'
+import { countUnresolved, deleteProjectStacks, getStack, listNewIssues, listStacks } from './issues'
 
 export const erratas: NexitasModule = {
   id: 'erratas',
@@ -50,10 +50,17 @@ export const erratas: NexitasModule = {
     const to = `/p/${projectId}/errors?q=status:unresolved`
     return [
       unresolved
-        ? { text: `${unresolved} unresolved`, to, tone: 'warning' }
-        : { text: 'nothing unresolved', to },
+        ? { text: `${unresolved} unresolved`, to, tone: 'warning', figure: String(unresolved) }
+        : { text: 'nothing unresolved', to, figure: '0' },
     ]
   },
+  projectActivity: (db, projectId, since) =>
+    listNewIssues(db, projectId, since).map((issue) => ({
+      at: issue.at,
+      title: `New ${issue.level === 'info' ? 'notice' : issue.level}`,
+      detail: issue.title,
+      to: `/p/${projectId}/errors/${issue.id}`,
+    })),
   deleteProject: (db, projectId) => deleteProjectStacks(db, projectId),
 }
 

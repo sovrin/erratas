@@ -8,6 +8,7 @@ export default defineAppConfig({
         label: 'Errors',
         description: 'What breaks in your apps, grouped into issues, with the stack trace.',
         icon: 'bug',
+        accent: 'pink',
         panel: 'ErratasProject',
       },
     ],

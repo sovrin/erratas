@@ -211,3 +211,16 @@ export function recordEvent(db: DatabaseSync, stackId: string, event: IngestEven
   )
   return existing.id
 }
+
+/** Issues the project's stacks first reported since `since`, newest first: the news on its
+ *  overview. A known issue happening again is not news; its count says so on the list. */
+export function listNewIssues(db: DatabaseSync, projectId: string, since: number) {
+  return db
+    .prepare(
+      `SELECT i.id, i.title, i.level, i.first_seen AS at FROM issues i
+      JOIN stacks s ON s.id = i.stack_id
+      WHERE s.project_id = ? AND i.first_seen > ?
+      ORDER BY i.first_seen DESC LIMIT 30`,
+    )
+    .all(projectId, since) as { id: string; title: string; level: string; at: number }[]
+}

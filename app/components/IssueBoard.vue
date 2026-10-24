@@ -1,0 +1,210 @@
+<script setup lang="ts">
+import { formatAge, formatCount, plural } from '#nexitas/app/lib/format'
+import type { Issue, Stack } from '../../shared/contracts'
+import {
+  DEFAULT_SEARCH,
+  ISSUES_PER_PAGE,
+  SEARCH_KEYS,
+  paginate,
+  parseSearchQuery,
+  searchOrDefault,
+  selectIssues,
+  setSearchToken,
+  summarise,
+} from '../../shared/issues'
+import { issuesKey, levelTones } from '../lib/issues'
+
+/** <IssueBoard :selected="id"><template #aside>…</template></IssueBoard>
+ *  The project's issues, as the list page and an issue's page both show them: the issue's page is
+ *  this list with the issue in the inspector, so going through them never leaves the list. */
+const props = defineProps<{ selected?: string }>()
+const slots = defineSlots<{ aside?: () => unknown; danger?: () => unknown }>()
+
+// The project's issues, newest first. The search is the only filter: `status:unresolved
+// env:production` narrows, anything else is text. It lives in the address, so links from a
+// project or an issue arrive narrowed and the back button keeps it. With none, the list opens
+// on what is unresolved.
+const project = useProject().id.value
+const route = useRoute()
+const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
+const query = computed(() => searchOrDefault(q.value))
+const requestedPage = computed(() => Number(route.query.page) || 1)
+const {
+  data: issues,
+  error,
+  refresh,
+} = await useProjectFetch<Issue[]>('/errors', {
+  key: issuesKey(project),
+})
+// Without a stack nothing can report, which the empty list says instead of "nothing yet".
+const { data: stacks } = await useProjectFetch<Stack[]>('/errors/stacks', {
+  key: `erratas-stacks-${project}`,
+})
+
+// Ages on screen move on their own while the page sits open.
+const now = ref(Date.now())
+let tick: ReturnType<typeof setInterval> | undefined
+onMounted(() => (tick = setInterval(() => (now.value = Date.now()), 30_000)))
+onUnmounted(() => clearInterval(tick))
+watch(issues, () => (now.value = Date.now()))
+
+const summary = computed(() => summarise(issues.value ?? [], now.value))
+const page = computed(() =>
+  paginate(
+    selectIssues(issues.value ?? [], parseSearchQuery(query.value), props.selected),
+    requestedPage.value,
+  ),
+)
+
+/** The address for a search or page; anything new starts on the first page. */
+function board(next: { q?: string; page?: number }) {
+  const to = { q: q.value, page: 1, ...next }
+  return {
+    path: `/p/${project}/errors`,
+    query: {
+      ...(to.q && to.q !== DEFAULT_SEARCH ? { q: to.q } : {}),
+      ...(to.page > 1 ? { page: String(to.page) } : {}),
+    },
+  }
+}
+
+// The field follows the address, and searches on Enter or clear.
+const searchText = ref(query.value)
+watch(query, (value) => (searchText.value = value))
+// An emptied box asks for everything, not for the unresolved it opened on.
+const search = () => navigateTo(board({ q: searchText.value.trim() || 'status:all' }))
+const searchKeys = SEARCH_KEYS.map((key) => `${key}:`).join(' ')
+
+// The status links over the list: the search's status word, set, or `all` for all of them.
+const STATUSES = ['unresolved', 'resolved', 'ignored'] as const
+const shownStatus = computed(
+  () => /(?:^|\s)status:(\S+)/i.exec(query.value)?.[1]?.toLowerCase() ?? 'all',
+)
+const statusLinks = computed(() => [
+  ...STATUSES.map((status) => ({
+    label: `${status[0]!.toUpperCase()}${status.slice(1)} ${formatCount(
+      (issues.value ?? []).filter((issue) => issue.status === status).length,
+    )}`,
+    to: board({ q: setSearchToken(query.value, 'status', status) }),
+    current: shownStatus.value === status,
+  })),
+  {
+    label: 'All',
+    to: board({ q: setSearchToken(query.value, 'status', 'all') }),
+    current: shownStatus.value === 'all',
+  },
+])
+</script>
+
+<template>
+  <AppPage
+    title="Errors"
+    aside-title="Issue"
+    failed="Could not load the issues."
+    :error="error"
+    :retry="refresh"
+  >
+    <template v-if="issues" #lead>
+      <!-- The baseline, whatever the search: is anything happening? -->
+      <AppLead
+        :title="
+          summary.unresolved ? plural(summary.unresolved, 'unresolved issue') : 'Nothing unresolved'
+        "
+      >
+        <template #meta>
+          <template v-if="summary.lastEventAt === null">Nothing reported yet.</template>
+          <template v-else>
+            <span class="tabular">{{ summary.newIn24h }} new in 24h</span> ·
+            <span class="tabular">{{ plural(summary.events, 'event') }}</span> · last event
+            {{ formatAge(summary.lastEventAt, now) }}
+          </template>
+        </template>
+      </AppLead>
+    </template>
+    <template #filters>
+      <FilterLinks label="Show" :options="statusLinks" />
+      <SearchBox
+        v-model="searchText"
+        label="Search issues"
+        placeholder="Search"
+        mono
+        :maxlength="200"
+        @search="search"
+      >
+        <template #hint
+          >Words match the title and culprit; narrow with
+          <span class="font-mono">{{ searchKeys }}</span></template
+        >
+      </SearchBox>
+    </template>
+    <template v-if="issues">
+      <DataTable v-if="page.items.length">
+        <thead>
+          <tr>
+            <th scope="col">Issue</th>
+            <th scope="col" data-num>Events</th>
+            <th scope="col" data-num>Last seen</th>
+          </tr>
+        </thead>
+        <!-- Rows animate only while the view stays the same (live arrivals); a new search or
+             page replaces the list at once, keyed by the view. -->
+        <TransitionGroup :key="`${q}|${page.page}`" tag="tbody" name="row" class="relative">
+          <tr
+            v-for="issue in page.items"
+            :key="issue.id"
+            :aria-selected="issue.id === props.selected || undefined"
+          >
+            <td>
+              <span class="stack gap-1 min-w-0">
+                <!-- Resolved and ignored recede: the list shows what still needs doing. -->
+                <!-- The search and page come along, so the list beside the issue stays the same. -->
+                <NuxtLink
+                  :to="{ path: `/p/${project}/errors/${issue.id}`, query: route.query }"
+                  class="link break-words"
+                  data-quiet
+                  :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
+                  >{{ issue.title }}</NuxtLink
+                >
+                <span class="cluster gap-2 text-xs text-muted">
+                  <StateDot
+                    :tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
+                    >{{ issue.level }}, {{ issue.status }}</StateDot
+                  >
+                  <span class="font-mono break-words">{{ issue.stackName }}</span>
+                </span>
+              </span>
+            </td>
+            <td data-num>{{ formatCount(issue.count) }}</td>
+            <td data-num class="text-muted">
+              <time :datetime="new Date(issue.lastSeen).toISOString()">{{
+                formatAge(issue.lastSeen, now)
+              }}</time>
+            </td>
+          </tr>
+        </TransitionGroup>
+      </DataTable>
+      <EmptyState v-else-if="issues.length">{{
+        q ? `Nothing matches “${q}”.` : 'Nothing unresolved.'
+      }}</EmptyState>
+      <EmptyState v-else-if="stacks?.length">
+        Nothing reported yet. Send a stack a test event from
+        <NuxtLink :to="`/p/${project}`" class="link">the project’s page</NuxtLink>.
+      </EmptyState>
+      <EmptyState v-else>
+        Errors are not collected for this project yet.
+        <NuxtLink :to="`/p/${project}`" class="link">Add a stack</NuxtLink> on its page to get the
+        DSN its apps report with.
+      </EmptyState>
+
+      <PagerNav
+        :page="page.page"
+        :page-size="ISSUES_PER_PAGE"
+        :total="page.total"
+        :to="(next) => board({ page: next })"
+      />
+    </template>
+
+    <template v-if="slots.aside" #aside><slot name="aside" /></template>
+    <template v-if="slots.danger" #danger><slot name="danger" /></template>
+  </AppPage>
+</template>

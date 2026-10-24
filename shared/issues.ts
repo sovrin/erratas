@@ -35,12 +35,18 @@ export interface SearchQuery {
 
 const TOKEN = /^([a-z]+):(.*)$/i
 
+/** The search an empty box stands for: the list opens on what still needs doing. `status:all`
+ *  is how a search says "every status", since an empty one means this. */
+export const DEFAULT_SEARCH = 'status:unresolved'
+export const searchOrDefault = (raw: string) => raw.trim() || DEFAULT_SEARCH
+
 export function parseSearchQuery(raw: string): SearchQuery {
   const query: SearchQuery = { tags: [], terms: [] }
   for (const token of raw.trim().split(/\s+/).filter(Boolean)) {
     const match = TOKEN.exec(token)
     const key = match?.[1]!.toLowerCase()
     const resolve = key ? TAG_RESOLVERS[key] : undefined
+    if (key === 'status' && match![2]!.toLowerCase() === 'all') continue
     if (key && resolve) {
       // `env:` with no value yet is half-typed, not a filter: read as text it would empty the list.
       if (match![2]) query.tags.push({ key, value: match![2].toLowerCase(), resolve })
@@ -79,10 +85,11 @@ export function setSearchToken(current: string, key: string, value: string) {
     .join(' ')
 }
 
-/** The issues matching the search, newest first. */
-export function selectIssues(issues: readonly Issue[], query: SearchQuery) {
+/** The issues matching the search, newest first. `keep` (the open issue) stays in whatever the
+ *  search, so the list beside it never loses the row it is showing. */
+export function selectIssues(issues: readonly Issue[], query: SearchQuery, keep?: string) {
   return issues
-    .filter((issue) => matchesSearchQuery(issue, query))
+    .filter((issue) => issue.id === keep || matchesSearchQuery(issue, query))
     .sort((a, b) => b.lastSeen - a.lastSeen)
 }
 
