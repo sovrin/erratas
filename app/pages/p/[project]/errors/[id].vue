@@ -187,12 +187,14 @@ async function remove() {
         <AppSection title="Stack trace">
           <EmptyState v-if="!issue.frames.length">No stack trace was captured.</EmptyState>
           <!-- Innermost frame first, numbered, in a well; the culprit's frame in the module's
-               tint, with the source lines the SDK captured at throw time. -->
+               tint, with the source lines the SDK captured at throw time. Every frame takes
+               the tint's padding, so the culprit's text lines up with the rest. -->
           <ol v-if="issue.frames.length" class="bg-sunken p-3 ps-6 font-mono text-s">
             <li
               v-for="(frame, index) in issue.frames"
               :key="index"
-              :class="{ 'bg-tint p-2': isCulprit(frame) }"
+              class="px-2 py-1"
+              :class="{ 'bg-tint': isCulprit(frame) }"
             >
               <span
                 ><span class="nowrap"
