@@ -35,17 +35,15 @@ const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''
 // The status links own the status: a `status:` typed into the box gives way to them.
 const query = computed(() => setSearchToken(q.value, 'status', status.value))
 const requestedPage = computed(() => Number(route.query.page) || 1)
-const {
-  data: issues,
-  error,
-  refresh,
-} = await useProjectFetch<Issue[]>('/errors', {
-  key: issuesKey(project),
-})
-// Without a stack nothing can report, which the empty list says instead of "nothing yet".
-const { data: stacks } = await useProjectFetch<Stack[]>('/errors/stacks', {
-  key: `erratas-stacks-${project}`,
-})
+// Both at once: the page waits for one round trip, not two.
+const [
+  { data: issues, error, refresh },
+  // Without a stack nothing can report, which the empty list says instead of "nothing yet".
+  { data: stacks },
+] = await Promise.all([
+  useProjectFetch<Issue[]>('/errors', { key: issuesKey(project) }),
+  useProjectFetch<Stack[]>('/errors/stacks', { key: `erratas-stacks-${project}` }),
+])
 
 // Ages on screen move on their own while the page sits open.
 const now = ref(Date.now())
