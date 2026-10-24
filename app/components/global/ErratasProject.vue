@@ -13,10 +13,6 @@ const {
   refresh,
 } = await useProjectFetch<Stack[]>('/errors/stacks', { key: `erratas-stacks-${props.project.id}` })
 const origin = useRequestURL().origin
-/** What erratas says about this project, as the overview shows it. */
-const status = computed(
-  () => props.project.status.find((entry) => entry.module === 'erratas')?.items ?? [],
-)
 
 const name = ref('')
 const platform = ref('')
@@ -34,8 +30,10 @@ async function add() {
   await refresh()
 }
 
+const removing = ref('')
 const removeError = ref('')
 async function remove(stack: Stack) {
+  removing.value = stack.id
   removeError.value = ''
   try {
     await $fetch(`/api/p/${props.project.id}/errors/stacks/${stack.id}/delete`, {
@@ -45,6 +43,8 @@ async function remove(stack: Stack) {
     await refresh()
   } catch (cause) {
     removeError.value = errorMessage(cause)
+  } finally {
+    removing.value = ''
   }
 }
 </script>
@@ -54,15 +54,10 @@ async function remove(stack: Stack) {
   <div class="stack gap-4">
     <AppAlert v-if="error" title="Could not load its stacks.">{{ errorMessage(error) }}</AppAlert>
     <template v-else-if="stacks">
-      <!-- The figure first, as every panel leads with one; the setup folds away below it. -->
-      <p v-if="stacks.length" class="cluster gap-3">
-        <StatusItems :items="status" />
-        <NuxtLink :to="`/p/${project.id}/errors`" class="link">Its issues</NuxtLink>
-      </p>
-      <p v-else class="text-muted">
+      <EmptyState v-if="!stacks.length">
         Reports what breaks in its apps. Add a stack for each runtime, such as the site and its API,
         to get the DSN it reports with.
-      </p>
+      </EmptyState>
 
       <section
         v-for="stack in stacks"
@@ -71,15 +66,16 @@ async function remove(stack: Stack) {
         :aria-label="`Stack ${stack.name}`"
       >
         <div class="cluster gap-3">
-          <strong>{{ stack.name }}</strong>
+          <strong class="font-mono">{{ stack.name }}</strong>
           <span v-if="stack.platform" class="font-mono text-xs text-muted">{{
             stack.platform
           }}</span>
           <DangerAction
             class="end"
-            label="Remove"
-            :title="`Remove ${stack.name}?`"
-            confirm-label="Remove stack"
+            label="Delete stack"
+            :title="`Delete ${stack.name}?`"
+            :confirm-word="stack.name"
+            :pending="removing === stack.id"
             @confirm="remove(stack)"
           >
             Its issues go with it, and apps reporting with its DSN get a 401. This cannot be undone.
@@ -100,8 +96,11 @@ async function remove(stack: Stack) {
         >Browsers may report only from the project's sites; servers send no origin and need only the
         DSN.</small
       >
-      <AppAlert v-if="removeError" title="Could not remove the stack.">{{ removeError }}</AppAlert>
+      <AppAlert v-if="removeError" title="Could not delete the stack.">{{ removeError }}</AppAlert>
 
+      <FormIssues :error="addError" :issues="issues" failed="Could not add the stack." />
+      <!-- One row, not the kit's form with its footer: two short fields at the foot of a panel,
+           and a project's page holds every module's panels, so it takes no primary of its own. -->
       <form class="cluster gap-3 items-end" @submit.prevent="add">
         <div class="field">
           <label :for="`stack-name-${project.id}`">Stack</label>
@@ -143,7 +142,6 @@ async function remove(stack: Stack) {
           Add a stack
         </button>
       </form>
-      <FormIssues :error="addError" :issues="issues" failed="Could not add the stack." />
     </template>
   </div>
 </template>

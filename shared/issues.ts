@@ -35,17 +35,13 @@ export interface SearchQuery {
 
 const TOKEN = /^([a-z]+):(.*)$/i
 
-/** The search an empty box stands for: the list opens on what still needs doing. `status:all`
- *  is how a search says "every status", since an empty one means this. */
-export const DEFAULT_SEARCH = 'status:unresolved'
-export const searchOrDefault = (raw: string) => raw.trim() || DEFAULT_SEARCH
-
 export function parseSearchQuery(raw: string): SearchQuery {
   const query: SearchQuery = { tags: [], terms: [] }
   for (const token of raw.trim().split(/\s+/).filter(Boolean)) {
     const match = TOKEN.exec(token)
     const key = match?.[1]!.toLowerCase()
     const resolve = key ? TAG_RESOLVERS[key] : undefined
+    // `status:all` is how the status links say "every status".
     if (key === 'status' && match![2]!.toLowerCase() === 'all') continue
     if (key && resolve) {
       // `env:` with no value yet is half-typed, not a filter: read as text it would empty the list.

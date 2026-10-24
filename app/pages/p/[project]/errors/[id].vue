@@ -14,10 +14,11 @@ const { data: issue, error } = await useProjectFetch<IssueDetail>(`/errors/issue
 const now = ref(Date.now())
 watch(issue, () => (now.value = Date.now()))
 
-/** The list narrowed to one value of a dimension, for each clickable property. */
+/** The list narrowed to one value of a dimension, for each clickable property, whatever the
+ *  issues' status. */
 const narrowed = (key: string, value: string) => ({
   path: list,
-  query: { q: `${key}:${value.split(/\s+/)[0]}` },
+  query: { status: 'all', q: `${key}:${value.split(/\s+/)[0]}` },
 })
 
 // A long path breaks after its slashes, never inside a name.
@@ -27,12 +28,11 @@ const isCulprit = (frame: DisplayFrame) =>
   `${frame.func ?? '?'} (${frame.loc ?? 'unknown'})` === issue.value?.culprit
 
 const pending = ref(false)
-const actionError = ref('')
-const actionFailed = ref('')
+const statusError = ref('')
+const actions = ref<HTMLElement>()
 async function setStatus(status: IssueStatus) {
   pending.value = true
-  actionError.value = ''
-  actionFailed.value = 'Could not change its status.'
+  statusError.value = ''
   try {
     issue.value = await $fetch<IssueDetail>(api, {
       method: 'POST',
@@ -41,89 +41,100 @@ async function setStatus(status: IssueStatus) {
     // The list beside it shows the status too.
     await refreshNuxtData(issuesKey(project))
   } catch (cause) {
-    actionError.value = errorMessage(cause)
+    statusError.value = errorMessage(cause)
   } finally {
     pending.value = false
   }
+  // The button pressed gives way to the other status's: focus goes to its replacement.
+  await nextTick()
+  if (!actions.value?.contains(document.activeElement))
+    actions.value?.querySelector('button')?.focus()
 }
 
+const removing = ref(false)
+const removeError = ref('')
 async function remove() {
-  actionError.value = ''
-  actionFailed.value = 'Could not delete the issue.'
+  removing.value = true
+  removeError.value = ''
   try {
     await $fetch(`${api}/delete`, { method: 'POST', body: {} })
     await navigateTo({ path: list, query: route.query })
   } catch (cause) {
-    actionError.value = errorMessage(cause)
+    removeError.value = errorMessage(cause)
+  } finally {
+    removing.value = false
   }
 }
 </script>
 
 <template>
-  <IssueBoard :selected="id">
+  <!-- A title is a stranger's text: it heads the inspector as text, wrapped, never as markup. -->
+  <IssueBoard :selected="id" :aside-name="issue?.title">
     <template #aside>
       <AppAlert v-if="error" title="Could not load this issue.">{{ errorMessage(error) }}</AppAlert>
       <div v-else-if="issue" class="stack gap-5">
-        <!-- A title is a stranger's text: shown as text, wrapped, never as markup. -->
-        <div class="stack gap-1">
-          <p class="weight-600 break-words">{{ issue.title }}</p>
-          <span class="text-s text-muted">
-            <StateDot :tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
-              >{{ issue.level }} · {{ issue.status }}</StateDot
-            >
-          </span>
-        </div>
-
+        <AppAlert v-if="statusError" title="Could not change its status.">{{
+          statusError
+        }}</AppAlert>
         <div class="stack gap-2">
-          <div class="cluster gap-2">
-            <template v-if="issue.status === 'unresolved'">
+          <div class="cluster justify-between items-center gap-2">
+            <span class="text-s">
+              <StateDot :tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
+                >{{ issue.level }} · {{ issue.status }}</StateDot
+              >
+            </span>
+            <div ref="actions" class="cluster gap-2">
+              <template v-if="issue.status === 'unresolved'">
+                <button
+                  type="button"
+                  class="btn"
+                  data-size="s"
+                  data-variant="primary"
+                  :disabled="pending"
+                  :aria-busy="pending || undefined"
+                  aria-describedby="status-help"
+                  @click="setStatus('resolved')"
+                >
+                  Resolve
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  data-size="s"
+                  :disabled="pending"
+                  :aria-busy="pending || undefined"
+                  aria-describedby="status-help"
+                  @click="setStatus('ignored')"
+                >
+                  Ignore
+                </button>
+              </template>
               <button
+                v-else
                 type="button"
                 class="btn"
                 data-size="s"
-                data-variant="primary"
                 :disabled="pending"
+                :aria-busy="pending || undefined"
                 aria-describedby="status-help"
-                @click="setStatus('resolved')"
+                @click="setStatus('unresolved')"
               >
-                Resolve
+                Reopen
               </button>
-              <button
-                type="button"
-                class="btn"
-                data-size="s"
-                :disabled="pending"
-                aria-describedby="status-help"
-                @click="setStatus('ignored')"
-              >
-                Ignore
-              </button>
-            </template>
-            <button
-              v-else
-              type="button"
-              class="btn"
-              data-size="s"
-              :disabled="pending"
-              aria-describedby="status-help"
-              @click="setStatus('unresolved')"
-            >
-              Reopen
-            </button>
+            </div>
           </div>
           <small id="status-help" class="text-xs text-muted">{{
             issue.status === 'ignored'
               ? 'Ignored: new events still count, but never reopen it.'
               : 'A resolved issue reopens when it happens again.'
           }}</small>
-          <AppAlert v-if="actionError" :title="actionFailed">{{ actionError }}</AppAlert>
         </div>
 
         <!-- Values link to the list narrowed to them: is it one release, or all of them? -->
         <dl class="properties">
           <dt>Stack</dt>
           <dd>
-            <NuxtLink :to="narrowed('stack', issue.stackName)" class="link" data-quiet>{{
+            <NuxtLink :to="narrowed('stack', issue.stackName)" class="link font-mono" data-quiet>{{
               issue.stackName
             }}</NuxtLink>
           </dd>
@@ -210,12 +221,12 @@ async function remove() {
       <DangerAction
         label="Delete issue"
         title="Delete this issue?"
-        confirm-label="Delete issue"
+        :pending="removing"
         @confirm="remove"
       >
-        Removes the issue and its count. If it happens again, it comes back as new. This cannot be
-        undone.
+        If it happens again, it comes back as new. This cannot be undone.
       </DangerAction>
+      <AppAlert v-if="removeError" title="Could not delete the issue.">{{ removeError }}</AppAlert>
     </template>
   </IssueBoard>
 </template>

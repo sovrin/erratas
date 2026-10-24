@@ -47,7 +47,8 @@ export const erratas: NexitasModule = {
   projectStatus: (db, projectId) => {
     if (!listStacks(db, projectId).length) return []
     const unresolved = countUnresolved(db, projectId)
-    const to = `/p/${projectId}/errors?q=status:unresolved`
+    // The list opens on what is unresolved.
+    const to = `/p/${projectId}/errors`
     return [
       unresolved
         ? { text: `${unresolved} unresolved`, to, tone: 'warning', figure: String(unresolved) }

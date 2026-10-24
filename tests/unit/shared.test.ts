@@ -6,7 +6,6 @@ import {
   matchesSearchQuery,
   paginate,
   parseSearchQuery,
-  searchOrDefault,
   selectIssues,
   setSearchToken,
   summarise,
@@ -50,11 +49,11 @@ describe('search', () => {
     expect(match('status:resolved env:')).toBe(false)
   })
 
-  it('opens on unresolved, and status:all lifts the status filter', () => {
+  it('takes its status from the links, and status:all lifts the status filter', () => {
     const resolved = anIssue({ status: 'resolved' })
-    expect(match(searchOrDefault(''), resolved)).toBe(false)
-    expect(match(searchOrDefault(' '), anIssue())).toBe(true)
-    expect(match(searchOrDefault('status:all'), resolved)).toBe(true)
+    expect(match(setSearchToken('', 'status', 'unresolved'), resolved)).toBe(false)
+    expect(match(setSearchToken(' ', 'status', 'unresolved'), anIssue())).toBe(true)
+    expect(match(setSearchToken('status:unresolved', 'status', 'all'), resolved)).toBe(true)
     expect(parseSearchQuery('status:ALL env:prod').tags.map((tag) => tag.key)).toEqual(['env'])
   })
 

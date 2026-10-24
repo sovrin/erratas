@@ -2,12 +2,10 @@
 import { formatAge, formatCount, plural } from '#nexitas/app/lib/format'
 import type { Issue, Stack } from '../../shared/contracts'
 import {
-  DEFAULT_SEARCH,
   ISSUES_PER_PAGE,
   SEARCH_KEYS,
   paginate,
   parseSearchQuery,
-  searchOrDefault,
   selectIssues,
   setSearchToken,
   summarise,
@@ -17,17 +15,25 @@ import { issuesKey, levelTones } from '../lib/issues'
 /** <IssueBoard :selected="id"><template #aside>…</template></IssueBoard>
  *  The project's issues, as the list page and an issue's page both show them: the issue's page is
  *  this list with the issue in the inspector, so going through them never leaves the list. */
-const props = defineProps<{ selected?: string }>()
+const props = defineProps<{
+  selected?: string
+  /** The open issue's title, which heads the inspector. */
+  asideName?: string
+}>()
 const slots = defineSlots<{ aside?: () => unknown; danger?: () => unknown }>()
 
-// The project's issues, newest first. The search is the only filter: `status:unresolved
-// env:production` narrows, anything else is text. It lives in the address, so links from a
-// project or an issue arrive narrowed and the back button keeps it. With none, the list opens
-// on what is unresolved.
+// The project's issues, newest first. The status links pick which ones (unresolved unless told),
+// the search narrows them: `env:production` narrows a dimension, anything else is text. Both live
+// in the address, so links from a project or an issue arrive narrowed and the back button keeps it.
 const project = useProject().id.value
 const route = useRoute()
+const STATUSES = ['unresolved', 'resolved', 'ignored'] as const
+const status = computed(() =>
+  typeof route.query.status === 'string' ? route.query.status.toLowerCase() : 'unresolved',
+)
 const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
-const query = computed(() => searchOrDefault(q.value))
+// The status links own the status: a `status:` typed into the box gives way to them.
+const query = computed(() => setSearchToken(q.value, 'status', status.value))
 const requestedPage = computed(() => Number(route.query.page) || 1)
 const {
   data: issues,
@@ -56,43 +62,43 @@ const page = computed(() =>
   ),
 )
 
-/** The address for a search or page; anything new starts on the first page. */
-function board(next: { q?: string; page?: number }) {
-  const to = { q: q.value, page: 1, ...next }
+/** The address for a status, search or page; anything new starts on the first page. */
+function board(next: { status?: string; q?: string; page?: number }) {
+  const to = { status: status.value, q: q.value, page: 1, ...next }
   return {
     path: `/p/${project}/errors`,
     query: {
-      ...(to.q && to.q !== DEFAULT_SEARCH ? { q: to.q } : {}),
+      ...(to.status !== 'unresolved' ? { status: to.status } : {}),
+      ...(to.q ? { q: to.q } : {}),
       ...(to.page > 1 ? { page: String(to.page) } : {}),
     },
   }
 }
 
 // The field follows the address, and searches on Enter or clear.
-const searchText = ref(query.value)
-watch(query, (value) => (searchText.value = value))
-// An emptied box asks for everything, not for the unresolved it opened on.
-const search = () => navigateTo(board({ q: searchText.value.trim() || 'status:all' }))
-const searchKeys = SEARCH_KEYS.map((key) => `${key}:`).join(' ')
-
-// The status links over the list: the search's status word, set, or `all` for all of them.
-const STATUSES = ['unresolved', 'resolved', 'ignored'] as const
-const shownStatus = computed(
-  () => /(?:^|\s)status:(\S+)/i.exec(query.value)?.[1]?.toLowerCase() ?? 'all',
+const searchText = ref(q.value)
+watch(q, (value) => (searchText.value = value))
+const search = () => navigateTo(board({ q: searchText.value.trim() }))
+const searchKeys = SEARCH_KEYS.filter((key) => key !== 'status')
+  .map((key) => `${key}:`)
+  .join(' ')
+// What a search found nothing for, in the words typed: its dimensions are not words.
+const words = computed(() =>
+  q.value
+    .split(/\s+/)
+    .filter((token) => parseSearchQuery(token).terms.length)
+    .join(' '),
 )
+
 const statusLinks = computed(() => [
-  ...STATUSES.map((status) => ({
-    label: `${status[0]!.toUpperCase()}${status.slice(1)} ${formatCount(
-      (issues.value ?? []).filter((issue) => issue.status === status).length,
+  ...STATUSES.map((value) => ({
+    label: `${value[0]!.toUpperCase()}${value.slice(1)} ${formatCount(
+      (issues.value ?? []).filter((issue) => issue.status === value).length,
     )}`,
-    to: board({ q: setSearchToken(query.value, 'status', status) }),
-    current: shownStatus.value === status,
+    to: board({ status: value }),
+    current: status.value === value,
   })),
-  {
-    label: 'All',
-    to: board({ q: setSearchToken(query.value, 'status', 'all') }),
-    current: shownStatus.value === 'all',
-  },
+  { label: 'All', to: board({ status: 'all' }), current: status.value === 'all' },
 ])
 </script>
 
@@ -100,12 +106,15 @@ const statusLinks = computed(() => [
   <AppPage
     title="Errors"
     aside-title="Issue"
+    :aside-name="asideName"
+    :aside-close="slots.aside ? { path: `/p/${project}/errors`, query: route.query } : undefined"
     failed="Could not load the issues."
     :error="error"
     :retry="refresh"
   >
-    <template v-if="issues" #lead>
-      <!-- The baseline, whatever the search: is anything happening? -->
+    <template v-if="issues && (issues.length || stacks?.length)" #lead>
+      <!-- The baseline, whatever the search: is anything happening? Not before anything can
+           report, where the empty state says how to start. -->
       <AppLead
         :title="
           summary.unresolved ? plural(summary.unresolved, 'unresolved issue') : 'Nothing unresolved'
@@ -114,7 +123,7 @@ const statusLinks = computed(() => [
         <template #meta>
           <template v-if="summary.lastEventAt === null">Nothing reported yet.</template>
           <template v-else>
-            <span class="tabular">{{ summary.newIn24h }} new in 24h</span> ·
+            <span class="tabular">{{ formatCount(summary.newIn24h) }} new in 24h</span> ·
             <span class="tabular">{{ plural(summary.events, 'event') }}</span> · last event
             {{ formatAge(summary.lastEventAt, now) }}
           </template>
@@ -148,7 +157,12 @@ const statusLinks = computed(() => [
         </thead>
         <!-- Rows animate only while the view stays the same (live arrivals); a new search or
              page replaces the list at once, keyed by the view. -->
-        <TransitionGroup :key="`${q}|${page.page}`" tag="tbody" name="row" class="relative">
+        <TransitionGroup
+          :key="`${status}|${q}|${page.page}`"
+          tag="tbody"
+          name="row"
+          class="relative"
+        >
           <tr
             v-for="issue in page.items"
             :key="issue.id"
@@ -168,7 +182,7 @@ const statusLinks = computed(() => [
                 <span class="cluster gap-2 text-xs text-muted">
                   <StateDot
                     :tone="issue.status === 'unresolved' ? levelTones[issue.level] : undefined"
-                    >{{ issue.level }}, {{ issue.status }}</StateDot
+                    >{{ issue.level }} · {{ issue.status }}</StateDot
                   >
                   <span class="font-mono break-words">{{ issue.stackName }}</span>
                 </span>
@@ -184,7 +198,7 @@ const statusLinks = computed(() => [
         </TransitionGroup>
       </DataTable>
       <EmptyState v-else-if="issues.length">{{
-        q ? `Nothing matches “${q}”.` : 'Nothing unresolved.'
+        words ? `Nothing matches “${words}”.` : 'Nothing here.'
       }}</EmptyState>
       <EmptyState v-else-if="stacks?.length">
         Nothing reported yet. Send a stack a test event from
