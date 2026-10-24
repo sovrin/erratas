@@ -23,6 +23,9 @@ import { dirname, resolve, sep } from 'node:path'
 /** Maps larger than this are skipped — a `sourcesContent` blob for a huge app. */
 const MAX_MAP_BYTES = 32 * 1024 * 1024
 
+/** Parsed maps kept at once; the oldest goes first. A map can be megabytes. */
+export const MAX_CACHED_MAPS = 20
+
 /** How much of a bundle's tail is scanned for its `sourceMappingURL` comment. */
 const TAIL_BYTES = 4096
 
@@ -48,8 +51,9 @@ export interface LoadedMap {
 /**
  * Parsed maps, keyed by the generated file they belong to.
  *
- * Held by the caller so its lifetime matches the hook's, and so a `null` — a
- * build with no map at all — is remembered rather than re-probed on every event.
+ * Held by the caller so its lifetime matches the hook's. Only maps are kept, never
+ * a miss: the symbolicate handler takes paths from a browser, and remembered misses
+ * would let anyone push the real maps out.
  */
 export type SourceMapCache = Map<string, LoadedMap | null>
 
@@ -141,10 +145,9 @@ function contentFor(loaded: LoadedMap, originalSource: string | undefined): stri
   return typeof content === 'string' && content !== '' ? content : null
 }
 
-/** `null` is cached as well: a build with no map must not be re-probed per event. */
 function loadMap(generatedPath: string, cache: SourceMapCache, confine?: string): LoadedMap | null {
   const hit = cache.get(generatedPath)
-  if (hit !== undefined) return hit
+  if (hit) return hit
 
   let loaded: LoadedMap | null = null
   try {
@@ -154,7 +157,7 @@ function loadMap(generatedPath: string, cache: SourceMapCache, confine?: string)
     // map reached that way can point anywhere, including out of the directory
     // the caller meant to expose. `confine` is how the symbolicate handler
     // refuses that; the in-process Node hook has no attacker and passes none.
-    if (mapPath && confine && !isInside(mapPath, confine)) return cacheMiss(cache, generatedPath)
+    if (mapPath && confine && !isInside(mapPath, confine)) return null
     if (mapPath && statSync(mapPath).size <= MAX_MAP_BYTES) {
       const payload = JSON.parse(readFileSync(mapPath, 'utf8')) as {
         sources?: unknown
@@ -176,13 +179,12 @@ function loadMap(generatedPath: string, cache: SourceMapCache, confine?: string)
     loaded = null
   }
 
-  cache.set(generatedPath, loaded)
+  if (loaded) {
+    // A Map iterates in insertion order: its first key is the oldest.
+    if (cache.size >= MAX_CACHED_MAPS) cache.delete(cache.keys().next().value!)
+    cache.set(generatedPath, loaded)
+  }
   return loaded
-}
-
-function cacheMiss(cache: SourceMapCache, key: string): null {
-  cache.set(key, null)
-  return null
 }
 
 /** True when `target` resolves inside `root` — separator included, so a sibling

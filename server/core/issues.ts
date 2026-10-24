@@ -2,10 +2,19 @@
 // one deletes them (foreign keys cascade, see module.ts).
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import type { DisplayFrame, Issue, IssueDetail, IssueStatus, Stack } from '../../shared/contracts'
+import type {
+  DisplayFrame,
+  Issue,
+  IssueDetail,
+  IssuesPage,
+  IssueStatus,
+  Stack,
+} from '../../shared/contracts'
+import { PREFIX_MATCHED, type SearchQuery } from '../../shared/issues'
 import { fingerprintOf, type IngestEvent } from './ingest'
 
 const newId = (bytes: number) => randomBytes(bytes).toString('hex')
+const DAY = 24 * 60 * 60 * 1000
 
 // ── Stacks
 
@@ -102,17 +111,65 @@ const toIssue = (row: IssueRow): Issue => ({
   release: row.release,
 })
 
-/** A project's issues, without their stack traces: the list filters and pages them in the browser.
- *  shortcut: fine for a few thousand issues; past that, search and page in SQL. */
-export function listIssues(db: DatabaseSync, projectId: string): Issue[] {
-  return (
-    db
-      .prepare(
-        `SELECT ${ISSUE_COLUMNS} FROM issues i JOIN stacks s ON s.id = i.stack_id
-        WHERE s.project_id = ? ORDER BY i.last_seen DESC`,
-      )
-      .all(projectId) as unknown as IssueRow[]
-  ).map(toIssue)
+// Each search dimension's column.
+const SEARCH_COLUMNS = {
+  stackName: 's.name',
+  environment: 'i.environment',
+  release: 'i.release',
+  level: 'i.level',
+  status: 'i.status',
+} as const
+
+const likeEscaped = (text: string) => text.replace(/[\\%_]/g, '\\$&')
+
+/** One page of a project's issues matching a search (shared/issues.ts), without their stack
+ *  traces, newest first. `keep` (the open issue) stays whatever the search, so the list beside it
+ *  never loses the row it is showing. A page past the end is the last: narrowing the search while
+ *  on page 4 lands at the end of the new list, not back at the top. */
+// shortcut: LIKE scans the project's issues, fine for tens of thousands; move to an FTS5 index if
+// searches get slow. Case folds for ASCII only.
+export function issuesPage(
+  db: DatabaseSync,
+  projectId: string,
+  {
+    query,
+    page,
+    pageSize,
+    keep = '',
+  }: { query: SearchQuery; page: number; pageSize: number; keep?: string },
+  now = Date.now(),
+): IssuesPage {
+  const where: string[] = []
+  const params: string[] = []
+  for (const tag of query.tags) {
+    where.push(`${SEARCH_COLUMNS[tag.field]} LIKE ? ESCAPE '\\'`)
+    const value = likeEscaped(tag.value)
+    params.push(PREFIX_MATCHED.has(tag.field) ? `${value}%` : `%${value}%`)
+  }
+  for (const term of query.terms) {
+    where.push(`(i.title || ' ' || i.culprit) LIKE ? ESCAPE '\\'`)
+    params.push(`%${likeEscaped(term)}%`)
+  }
+  const matching = `FROM issues i JOIN stacks s ON s.id = i.stack_id
+    WHERE s.project_id = ? AND (i.id = ? OR (${where.join(' AND ') || 'TRUE'}))`
+  const { total } = db
+    .prepare(`SELECT COUNT(*) AS total ${matching}`)
+    .get(projectId, keep, ...params) as { total: number }
+  const at = Math.min(Math.max(1, page), Math.max(1, Math.ceil(total / pageSize)))
+  const rows = db
+    .prepare(`SELECT ${ISSUE_COLUMNS} ${matching} ORDER BY i.last_seen DESC, i.id LIMIT ? OFFSET ?`)
+    .all(projectId, keep, ...params, pageSize, (at - 1) * pageSize) as unknown as IssueRow[]
+  const summary = db
+    .prepare(
+      `SELECT COUNT(*) AS issues, COALESCE(SUM(i.status = 'unresolved'), 0) AS unresolved,
+        COALESCE(SUM(i.status = 'resolved'), 0) AS resolved,
+        COALESCE(SUM(i.status = 'ignored'), 0) AS ignored,
+        COALESCE(SUM(i.first_seen > ?), 0) AS newIn24h, COALESCE(SUM(i.count), 0) AS events,
+        MAX(i.last_seen) AS lastEventAt
+      FROM issues i JOIN stacks s ON s.id = i.stack_id WHERE s.project_id = ?`,
+    )
+    .get(now - DAY, projectId) as unknown as IssuesPage['summary']
+  return { items: rows.map(toIssue), page: at, total, summary: { ...summary } }
 }
 
 export function getIssue(db: DatabaseSync, projectId: string, id: string): IssueDetail | null {
@@ -156,14 +213,21 @@ export function countUnresolved(db: DatabaseSync, projectId: string) {
   ).n
 }
 
-/** Files an event under its issue, opening the issue the first time. Synchronous from lookup to
- *  write, so two events for a new bug cannot both open it. */
-export function recordEvent(db: DatabaseSync, stackId: string, event: IngestEvent) {
+/** Files an event under its issue, opening the issue the first time if `mayOpen` agrees; null
+ *  when it does not. Synchronous from lookup to write, so two events for a new bug cannot both
+ *  open it. */
+export function recordEvent(
+  db: DatabaseSync,
+  stackId: string,
+  event: IngestEvent,
+  mayOpen = () => true,
+) {
   const fingerprint = fingerprintOf(event)
   const existing = db
     .prepare('SELECT id, last_seen FROM issues WHERE stack_id = ? AND fingerprint = ?')
     .get(stackId, fingerprint) as { id: string; last_seen: number } | undefined
   if (!existing) {
+    if (!mayOpen()) return null
     const id = newId(8)
     db.prepare(
       `INSERT INTO issues (id, stack_id, fingerprint, title, culprit, level, status, count,

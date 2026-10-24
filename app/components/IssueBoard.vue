@@ -1,15 +1,7 @@
 <script setup lang="ts">
 import { formatAge, formatCount, plural } from '#nexitas/app/lib/format'
-import type { Issue, Stack } from '../../shared/contracts'
-import {
-  ISSUES_PER_PAGE,
-  SEARCH_KEYS,
-  paginate,
-  parseSearchQuery,
-  selectIssues,
-  setSearchToken,
-  summarise,
-} from '../../shared/issues'
+import type { IssuesPage, Stack } from '../../shared/contracts'
+import { ISSUES_PER_PAGE, SEARCH_KEYS, parseSearchQuery } from '../../shared/issues'
 import { issuesKey, levelTones } from '../lib/issues'
 
 /** <IssueBoard :selected="id"><template #aside>…</template></IssueBoard>
@@ -22,9 +14,10 @@ const props = defineProps<{
 }>()
 const slots = defineSlots<{ aside?: () => unknown; danger?: () => unknown }>()
 
-// The project's issues, newest first. The status links pick which ones (unresolved unless told),
-// the search narrows them: `env:production` narrows a dimension, anything else is text. Both live
-// in the address, so links from a project or an issue arrive narrowed and the back button keeps it.
+// A page of the project's issues, newest first. The status links pick which ones (unresolved unless
+// told), the search narrows them: `env:production` narrows a dimension, anything else is text. Both
+// live in the address, so links from a project or an issue arrive narrowed and the back button
+// keeps it. The API applies them, a page at a time.
 const project = useProject().id.value
 const route = useRoute()
 const STATUSES = ['unresolved', 'resolved', 'ignored'] as const
@@ -32,8 +25,6 @@ const status = computed(() =>
   typeof route.query.status === 'string' ? route.query.status.toLowerCase() : 'unresolved',
 )
 const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''))
-// The status links own the status: a `status:` typed into the box gives way to them.
-const query = computed(() => setSearchToken(q.value, 'status', status.value))
 const requestedPage = computed(() => Number(route.query.page) || 1)
 // Both at once: the page waits for one round trip, not two.
 const [
@@ -41,7 +32,10 @@ const [
   // Without a stack nothing can report, which the empty list says instead of "nothing yet".
   { data: stacks },
 ] = await Promise.all([
-  useProjectFetch<Issue[]>('/errors', { key: issuesKey(project) }),
+  useProjectFetch<IssuesPage>('/errors', {
+    key: issuesKey(project),
+    query: { status, q, page: requestedPage, keep: computed(() => props.selected) },
+  }),
   useProjectFetch<Stack[]>('/errors/stacks', { key: `erratas-stacks-${project}` }),
 ])
 
@@ -52,13 +46,7 @@ onMounted(() => (tick = setInterval(() => (now.value = Date.now()), 30_000)))
 onUnmounted(() => clearInterval(tick))
 watch(issues, () => (now.value = Date.now()))
 
-const summary = computed(() => summarise(issues.value ?? [], now.value))
-const page = computed(() =>
-  paginate(
-    selectIssues(issues.value ?? [], parseSearchQuery(query.value), props.selected),
-    requestedPage.value,
-  ),
-)
+const summary = computed(() => issues.value?.summary)
 
 /** The address for a status, search or page; anything new starts on the first page. */
 function board(next: { status?: string; q?: string; page?: number }) {
@@ -90,9 +78,7 @@ const words = computed(() =>
 
 const statusLinks = computed(() => [
   ...STATUSES.map((value) => ({
-    label: `${value[0]!.toUpperCase()}${value.slice(1)} ${formatCount(
-      (issues.value ?? []).filter((issue) => issue.status === value).length,
-    )}`,
+    label: `${value[0]!.toUpperCase()}${value.slice(1)} ${formatCount(summary.value?.[value] ?? 0)}`,
     to: board({ status: value }),
     current: status.value === value,
   })),
@@ -110,7 +96,7 @@ const statusLinks = computed(() => [
     :error="error"
     :retry="refresh"
   >
-    <template v-if="issues && (issues.length || stacks?.length)" #lead>
+    <template v-if="summary && (summary.issues || stacks?.length)" #lead>
       <!-- The baseline, whatever the search: is anything happening? Not before anything can
            report, where the empty state says how to start. -->
       <AppLead
@@ -145,7 +131,7 @@ const statusLinks = computed(() => [
       </SearchBox>
     </template>
     <template v-if="issues">
-      <DataTable v-if="page.items.length">
+      <DataTable v-if="issues.items.length">
         <thead>
           <tr>
             <th scope="col">Issue</th>
@@ -156,13 +142,13 @@ const statusLinks = computed(() => [
         <!-- Rows animate only while the view stays the same (live arrivals); a new search or
              page replaces the list at once, keyed by the view. -->
         <TransitionGroup
-          :key="`${status}|${q}|${page.page}`"
+          :key="`${status}|${q}|${issues.page}`"
           tag="tbody"
           name="row"
           class="relative"
         >
           <tr
-            v-for="issue in page.items"
+            v-for="issue in issues.items"
             :key="issue.id"
             :aria-selected="issue.id === props.selected || undefined"
           >
@@ -195,7 +181,7 @@ const statusLinks = computed(() => [
           </tr>
         </TransitionGroup>
       </DataTable>
-      <EmptyState v-else-if="issues.length">{{
+      <EmptyState v-else-if="issues.summary.issues">{{
         words ? `Nothing matches “${words}”.` : 'Nothing here.'
       }}</EmptyState>
       <EmptyState v-else-if="stacks?.length">
@@ -209,9 +195,9 @@ const statusLinks = computed(() => [
       </EmptyState>
 
       <PagerNav
-        :page="page.page"
+        :page="issues.page"
         :page-size="ISSUES_PER_PAGE"
-        :total="page.total"
+        :total="issues.total"
         :to="(next) => board({ page: next })"
       />
     </template>

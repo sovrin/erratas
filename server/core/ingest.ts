@@ -58,13 +58,13 @@ export function toDisplayFrames(raw: unknown): DisplayFrame[] {
   for (let i = 0; i < raw.length && frames.length < MAX_FRAMES; i++) {
     const frame = raw[i]
     if (!frame || typeof frame !== 'object') continue
-    const filename = typeof frame.filename === 'string' ? frame.filename : ''
+    const filename = clamp(frame.filename, 500)
     const lineno = typeof frame.lineno === 'number' ? frame.lineno : null
     const colno = typeof frame.colno === 'number' ? frame.colno : null
     let loc = filename
     if (loc && lineno !== null) loc += `:${lineno}${colno !== null ? `:${colno}` : ''}`
     const display: DisplayFrame = {
-      func: typeof frame.function === 'string' && frame.function ? frame.function : '?',
+      func: clamp(frame.function, 200) || '?',
       loc: loc || 'unknown',
     }
     // Source context, captured at throw time by the SDK: from disk in Node, or from the app's
@@ -174,11 +174,15 @@ function parseException(raw: unknown) {
   }
 }
 
-/** The reporting machine's clock, which may be wrong or hostile: anything unparseable or in the
- *  future is now, or an issue dated 2049 would top the list forever. */
+/** How old an event may say it is: older than an offline queue would hold, it is a wrong clock. */
+const MAX_EVENT_AGE = 30 * 24 * 60 * 60 * 1000
+
+/** The reporting machine's clock, which may be wrong or hostile: anything unparseable, in the
+ *  future or older than MAX_EVENT_AGE is now, or an issue dated 2049 would top the list forever
+ *  and one dated 1970 would say it has been happening for decades. */
 function parseTimestamp(raw: unknown, now: number) {
   if (typeof raw !== 'string') return now
   const at = Date.parse(raw)
   // A minute of tolerance for ordinary clock skew.
-  return Number.isNaN(at) || at > now + 60_000 ? now : at
+  return Number.isNaN(at) || at > now + 60_000 || at < now - MAX_EVENT_AGE ? now : at
 }

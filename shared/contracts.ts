@@ -54,6 +54,23 @@ export interface Issue {
   release: string
 }
 
+/** One page of the issues a search finds, newest first, with the project's baseline whatever
+ *  the search: how many issues of each status, what is new and when anything last arrived. */
+export interface IssuesPage {
+  items: Issue[]
+  page: number
+  total: number
+  summary: {
+    issues: number
+    unresolved: number
+    resolved: number
+    ignored: number
+    newIn24h: number
+    events: number
+    lastEventAt: number | null
+  }
+}
+
 /** An issue on its own page, with its stack trace. */
 export interface IssueDetail extends Issue {
   frames: DisplayFrame[]

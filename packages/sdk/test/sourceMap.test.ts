@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { withSourceContext } from '../src/node/sourceContext'
-import { resolveViaSourceMap, type SourceMapCache } from '../src/node/sourceMap'
+import { MAX_CACHED_MAPS, resolveViaSourceMap, type SourceMapCache } from '../src/node/sourceMap'
 import { PAYLOAD_VERSION, type ErratasEvent, type StackFrame } from '../src/types'
 
 /**
@@ -99,12 +99,24 @@ describe('resolveViaSourceMap', () => {
     expect(resolveViaSourceMap(bare, 1, 1, new Map())).toBeNull()
   })
 
-  it('returns null for a file with no map at all, and remembers that', () => {
+  it('returns null for a file with no map at all, and keeps no miss', () => {
     const cache: SourceMapCache = new Map()
     const plain = writeBundle('plain.js', null)
 
     expect(resolveViaSourceMap(plain, 1, 1, cache)).toBeNull()
-    expect(cache.get(plain)).toBeNull()
+    expect(cache.has(plain)).toBe(false)
+  })
+
+  it('keeps only the newest maps', () => {
+    const cache: SourceMapCache = new Map()
+    const bundles = Array.from({ length: MAX_CACHED_MAPS + 1 }, (_, i) =>
+      writeBundle(`many${i}.js`, baseMap),
+    )
+    for (const each of bundles) resolveViaSourceMap(each, 1, 1, cache)
+
+    expect(cache.size).toBe(MAX_CACHED_MAPS)
+    expect(cache.has(bundles[0]!)).toBe(false)
+    expect(cache.has(bundles[MAX_CACHED_MAPS]!)).toBe(true)
   })
 
   it('survives a corrupt map', () => {

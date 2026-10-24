@@ -18,13 +18,15 @@ import {
   deleteIssue,
   deleteStack,
   getIssue,
-  listIssues,
+  issuesPage,
   recordEvent,
   setIssueStatus,
 } from '../../server/core/issues'
 import { erratas } from '../../server/core/module'
+import { parseSearchQuery } from '../../shared/issues'
 
 const NOW = Date.parse('2026-08-18T12:00:00.000Z')
+const HOUR = 60 * 60 * 1000
 
 const anEvent = (overrides: Record<string, unknown> = {}) => ({
   v: 1,
@@ -43,6 +45,11 @@ const anEvent = (overrides: Record<string, unknown> = {}) => ({
   },
   ...overrides,
 })
+
+const list = (db: DatabaseSync, search = '', page = 1, keep?: string) =>
+  issuesPage(db, 'sonotas', { query: parseSearchQuery(search), page, pageSize: 2, keep }, NOW)
+const ids = (db: DatabaseSync, search: string, keep?: string) =>
+  list(db, search, 1, keep).items.map((issue) => issue.id)
 
 const parse = (raw: object) => parseEvent(JSON.stringify(raw), NOW)
 const fingerprint = (raw: object) => fingerprintOf(parse(raw))
@@ -105,7 +112,9 @@ describe('parseEvent', () => {
           type: 'Error',
           value: 'v'.repeat(5000),
           frames: Array.from({ length: 500 }, (_, i) => ({
-            function: `f${i}`,
+            function: i ? `f${i}` : 'f'.repeat(1000),
+            filename: i ? 'f.js' : 'a'.repeat(1000),
+            lineno: 1,
             code: i ? [] : Array.from({ length: 50 }, (_, n) => ({ n, text: 'x'.repeat(900) })),
           })),
         },
@@ -115,6 +124,8 @@ describe('parseEvent', () => {
     expect(event.release).toHaveLength(60)
     expect(event.title).toHaveLength(500)
     expect(event.frames).toHaveLength(50)
+    expect(event.frames[0]!.func).toHaveLength(200)
+    expect(event.frames[0]!.loc).toBe(`${'a'.repeat(500)}:1`)
     expect(event.frames[0]!.code).toHaveLength(20)
     expect(event.frames[0]!.code![0]!.text).toHaveLength(400)
   })
@@ -128,13 +139,17 @@ describe('parseEvent', () => {
     expect(parse(anEvent({ level: 'catastrophe' })).level).toBe('error')
   })
 
-  // A machine reporting from 2049 would top the list forever.
-  it.each([new Date(NOW + 86_400_000).toISOString(), 'not-a-date', 42, null])(
-    'takes now for the timestamp %s',
-    (timestamp) => {
-      expect(parse(anEvent({ timestamp })).timestamp).toBe(NOW)
-    },
-  )
+  // A machine reporting from 2049 would top the list forever; one from 1970 is a wrong clock.
+  it.each([
+    new Date(NOW + 86_400_000).toISOString(),
+    new Date(NOW - 31 * 86_400_000).toISOString(),
+    '1970-01-01T00:00:00.000Z',
+    'not-a-date',
+    42,
+    null,
+  ])('takes now for the timestamp %s', (timestamp) => {
+    expect(parse(anEvent({ timestamp })).timestamp).toBe(NOW)
+  })
 
   it('keeps a past timestamp', () => {
     expect(parse(anEvent({ timestamp: '2026-08-18T11:00:00.000Z' })).timestamp).toBe(
@@ -239,7 +254,7 @@ describe('recordEvent', () => {
       release: 'v1',
     })
     expect(stack.publicKey).toMatch(/^[0-9a-f]{32}$/)
-    expect(listIssues(db, 'sonotas')).toHaveLength(2)
+    expect(list(db).total).toBe(2)
   })
 
   // An offline client flushing its queue must not drag a live issue back in time.
@@ -284,11 +299,54 @@ describe('recordEvent', () => {
     expect(getIssue(db, 'sonotas', id)!.status).toBe('unresolved')
   })
 
+  it('opens no issue its stack may not, but still counts known ones', () => {
+    const { db, stack } = setup()
+    const known = recordEvent(db, stack.id, parse(anEvent()))!
+    expect(recordEvent(db, stack.id, parse({ v: 1, message: 'new' }), () => false)).toBeNull()
+    expect(recordEvent(db, stack.id, parse(anEvent()), () => false)).toBe(known)
+    expect(list(db).total).toBe(1)
+    expect(getIssue(db, 'sonotas', known)!.count).toBe(2)
+  })
+
+  it('searches and pages in SQL', () => {
+    const { db, record } = setup()
+    const prod = record(anEvent({ environment: 'production', release: 'v2.4.1' }), NOW - 2 * HOUR)
+    const staging = record({ v: 1, message: 'cache 100% rebuilt', environment: 'staging' })
+    const resolved = record(thrownFrom('https://app.example/other.js'), NOW - HOUR)
+    setIssueStatus(db, 'sonotas', resolved, 'resolved')
+
+    expect(ids(db, '')).toEqual([staging, resolved])
+    expect(list(db, '', 2).items.map((issue) => issue.id)).toEqual([prod])
+    // A page past the end is the last.
+    expect(list(db, '', 9).page).toBe(2)
+    expect(ids(db, 'env:prod')).toEqual([prod])
+    expect(ids(db, 'release:v2.4 level:err typeerror')).toEqual([prod])
+    expect(ids(db, 'release:v9')).toEqual([])
+    expect(ids(db, 'stack:front main.js')).toEqual([prod])
+    // `'unresolved'.includes('resolved')`: the reason status matches by prefix.
+    expect(ids(db, 'status:resolved')).toEqual([resolved])
+    expect(ids(db, 'status:un')).toEqual([staging, prod])
+    // LIKE's wildcards are text.
+    expect(ids(db, '100%')).toEqual([staging])
+    expect(ids(db, '_')).toEqual([])
+    // The open issue stays whatever the search.
+    expect(ids(db, 'env:staging', prod)).toEqual([staging, prod])
+    expect(list(db, 'release:v9').summary).toEqual({
+      issues: 3,
+      unresolved: 2,
+      resolved: 1,
+      ignored: 0,
+      newIn24h: 3,
+      events: 3,
+      lastEventAt: NOW,
+    })
+  })
+
   it('goes with its project', () => {
     const { db, record } = setup()
     record(anEvent())
     deleteProject(db, 'sonotas', [erratas])
-    expect(listIssues(db, 'sonotas')).toEqual([])
+    expect(list(db).items).toEqual([])
     expect(countUnresolved(db, 'sonotas')).toBe(0)
   })
 })
