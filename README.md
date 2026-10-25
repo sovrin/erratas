@@ -14,7 +14,7 @@ name and origins); erratas adds:
   and stack trace;
 - the Errors pages: every issue with one search box, and an issue's own page to resolve, ignore,
   reopen or delete it;
-- an Errors panel on each project's page: its stacks, the snippet and DSN for each, a test command;
+- the Errors page's setup: the project's stacks, the snippet and DSN for each, a test command;
 - ingest, the public route apps report to, and [`@erratas/sdk`](packages/sdk/README.md), the client
   that reports.
 

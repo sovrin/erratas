@@ -1,5 +1,5 @@
-// erratas' part of the nexitas shell: its name and icon, its panel on each project, and its
-// section in the nav.
+// erratas' part of the nexitas shell: its name, icon and hue, and its section in the nav. A
+// project sets it up on its Errors page.
 export default defineAppConfig({
   nexitas: {
     modules: [
@@ -9,7 +9,6 @@ export default defineAppConfig({
         description: 'What breaks in your apps, grouped into issues, with the stack trace.',
         icon: 'bug',
         accent: 'pink',
-        panel: 'ErratasProject',
       },
     ],
     nav: [{ to: '/errors', label: 'Errors', module: 'erratas' }],

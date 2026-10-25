@@ -29,8 +29,8 @@ const requestedPage = computed(() => Number(route.query.page) || 1)
 // Both at once: the page waits for one round trip, not two.
 const [
   { data: issues, error, refresh },
-  // Without a stack nothing can report, which the empty list says instead of "nothing yet".
-  { data: stacks },
+  // Without a stack nothing can report: the page sets one up instead of showing the list.
+  { data: stacks, refresh: refreshStacks },
 ] = await Promise.all([
   useProjectFetch<IssuesPage>('/errors', {
     key: issuesKey(project),
@@ -47,6 +47,16 @@ onUnmounted(() => clearInterval(tick))
 watch(issues, () => (now.value = Date.now()))
 
 const summary = computed(() => issues.value?.summary)
+
+// The setup opens beside the list, never beside an issue: an issue's page shows the issue.
+const setup = useSetup()
+const setupOpen = computed(() => setup.open.value && !slots.aside)
+// The list's own address, without the setup: an issue opened from it, or closed, keeps the
+// search and page but not the setup.
+const listQuery = computed(() => {
+  const { setup: _, ...query } = route.query
+  return query
+})
 
 /** The address for a status, search or page; anything new starts on the first page. */
 function board(next: { status?: string; q?: string; page?: number }) {
@@ -89,16 +99,23 @@ const statusLinks = computed(() => [
 <template>
   <AppPage
     title="Errors"
-    aside-title="Issue"
+    :aside-title="slots.aside ? 'Issue' : 'Setup'"
     :aside-name="asideName"
-    :aside-close="slots.aside ? { path: `/p/${project}/errors`, query: route.query } : undefined"
+    :aside-close="
+      slots.aside
+        ? { path: `/p/${project}/errors`, query: listQuery }
+        : setupOpen
+          ? setup.close.value
+          : undefined
+    "
     failed="Could not load the issues."
     :error="error"
     :retry="refresh"
   >
-    <template v-if="summary && (summary.issues || stacks?.length)" #lead>
+    <template v-if="stacks?.length && !selected" #actions><SetupLink /></template>
+    <template v-if="summary && stacks?.length" #lead>
       <!-- The baseline, whatever the search: is anything happening? Not before anything can
-           report, where the empty state says how to start. -->
+           report, where the page sets up a stack instead. -->
       <AppLead
         :title="
           summary.unresolved ? plural(summary.unresolved, 'unresolved issue') : 'Nothing unresolved'
@@ -114,7 +131,7 @@ const statusLinks = computed(() => [
         </template>
       </AppLead>
     </template>
-    <template #filters>
+    <template v-if="stacks?.length" #filters>
       <FilterLinks label="Show" :options="statusLinks" />
       <SearchBox
         v-model="searchText"
@@ -130,7 +147,16 @@ const statusLinks = computed(() => [
         >
       </SearchBox>
     </template>
-    <template v-if="issues">
+    <!-- No stack, nothing can report: no list to show yet, only how to start. A stack needs a name
+         and a platform, so a one-click start does not fit; its form takes the content's place. -->
+    <div v-if="stacks && !stacks.length" class="stack gap-4">
+      <EmptyState>
+        Errors are not collected for this project yet. Add a stack for each runtime, such as the
+        site and its API, to get the DSN its apps report with.
+      </EmptyState>
+      <StackSetup :stacks="stacks" @changed="refreshStacks" />
+    </div>
+    <template v-else-if="issues">
       <DataTable v-if="issues.items.length">
         <thead>
           <tr>
@@ -157,7 +183,7 @@ const statusLinks = computed(() => [
                 <!-- Resolved and ignored recede: the list shows what still needs doing. -->
                 <!-- The search and page come along, so the list beside the issue stays the same. -->
                 <NuxtLink
-                  :to="{ path: `/p/${project}/errors/${issue.id}`, query: route.query }"
+                  :to="{ path: `/p/${project}/errors/${issue.id}`, query: listQuery }"
                   class="link break-words"
                   data-quiet
                   :class="issue.status === 'unresolved' ? 'weight-600' : 'text-muted'"
@@ -184,14 +210,9 @@ const statusLinks = computed(() => [
       <EmptyState v-else-if="issues.summary.issues">{{
         words ? `Nothing matches “${words}”.` : 'Nothing here.'
       }}</EmptyState>
-      <EmptyState v-else-if="stacks?.length">
-        Nothing reported yet. Send a stack a test event from
-        <NuxtLink :to="`/p/${project}`" class="link">the project’s page</NuxtLink>.
-      </EmptyState>
       <EmptyState v-else>
-        Errors are not collected for this project yet.
-        <NuxtLink :to="`/p/${project}`" class="link">Add a stack</NuxtLink> on its page to get the
-        DSN its apps report with.
+        Nothing reported yet. Send a stack a test event from
+        <NuxtLink :to="setup.openLink.value" class="link">its setup</NuxtLink>.
       </EmptyState>
 
       <PagerNav
@@ -203,6 +224,9 @@ const statusLinks = computed(() => [
     </template>
 
     <template v-if="slots.aside" #aside><slot name="aside" /></template>
+    <template v-else-if="setupOpen && stacks?.length" #aside>
+      <StackSetup :stacks="stacks" @changed="refreshStacks" />
+    </template>
     <template v-if="slots.danger" #danger><slot name="danger" /></template>
   </AppPage>
 </template>

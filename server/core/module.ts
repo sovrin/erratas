@@ -45,10 +45,10 @@ export const erratas: NexitasModule = {
   // Everything erratas serves; switched off, all of it answers 404 and no report is kept.
   paths: ['/errors', '/api/errors', '/v1/errors'],
   projectStatus: (db, projectId) => {
-    if (!listStacks(db, projectId).length) return []
-    const unresolved = countUnresolved(db, projectId)
-    // The list opens on what is unresolved.
+    // The list opens on what is unresolved; without a stack, the page sets one up.
     const to = `/p/${projectId}/errors`
+    if (!listStacks(db, projectId).length) return [{ text: 'Not set up', to }]
+    const unresolved = countUnresolved(db, projectId)
     return [
       unresolved
         ? { text: `${unresolved} unresolved`, to, tone: 'warning', figure: String(unresolved) }

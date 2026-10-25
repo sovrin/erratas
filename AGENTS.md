@@ -10,8 +10,9 @@ when a feature is proposed, the first question is whether it can be left out.
   the page shell are there, and plug-in points are its interfaces (`shared/modules.ts`). erratas
   registers itself in `server/core/module.ts`. What every module needs belongs in nexitas; what only
   erratas needs, here.
-- A project's stacks belong to one nexitas project, its issues to a stack. Its panel on a project's
-  page is `app/components/global/ErratasProject.vue`.
+- A project's stacks belong to one nexitas project, its issues to a stack. A project uses erratas
+  once it has a stack: until then the Errors page adds one in place of the list, after that its
+  Setup (`app/components/StackSetup.vue`) holds the stacks in the inspector.
 - Import by relative path (or `#nexitas/...`): `~` and `#shared` resolve against nexitas, the app
   around this layer. Nothing app-wide lives here: no name, logo, favicon or sign-in lines.
 - Keep comprehension debt low: explicit control flow, small modules, framework conventions, no
