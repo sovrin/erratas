@@ -13,8 +13,9 @@ when a feature is proposed, the first question is whether it can be left out.
 - A project's stacks belong to one nexitas project, its issues to a stack. A project uses erratas
   once it has a stack: until then the Errors page adds one in place of the list, after that its
   Setup (`app/components/StackSetup.vue`) holds the stacks in the inspector.
-- Import by relative path (or `#nexitas/...`): `~` and `#shared` resolve against nexitas, the app
-  around this layer. Nothing app-wide lives here: no name, logo, favicon or sign-in lines.
+- Import your own files through `#self/...` and the core through `#nexitas/...`: `~` and `#shared`
+  resolve against nexitas, the app around this layer. Nothing app-wide lives here: no name, logo,
+  favicon or sign-in lines.
 - Keep comprehension debt low: explicit control flow, small modules, framework conventions, no
   speculative abstractions. Comments say why, not what.
 - Rules worth testing are plain functions: `shared/issues.ts` (search, summary, paging),

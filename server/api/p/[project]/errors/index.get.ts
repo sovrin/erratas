@@ -1,7 +1,7 @@
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
 import { requestProject } from '#nexitas/server/utils/projects'
-import { ISSUES_PER_PAGE, parseSearchQuery, setSearchToken } from '../../../../../shared/issues'
-import { issuesPage } from '../../../../core/issues'
+import { ISSUES_PER_PAGE, parseSearchQuery, setSearchToken } from '#self/shared/issues'
+import { issuesPage } from '#self/server/core/issues'
 
 const text = (value: unknown) => (typeof value === 'string' ? value.slice(0, 200) : '')
 

@@ -6,8 +6,8 @@
 //   - Every array is capped before it is walked.
 //   - Nothing is trusted to be the type it claims; `frames` may be a number, a string or nulls.
 import { createHash } from 'node:crypto'
-import { ISSUE_LEVELS } from '../../shared/contracts'
-import type { DisplayFrame, IssueLevel, SourceLine } from '../../shared/contracts'
+import { ISSUE_LEVELS } from '#self/shared/contracts'
+import type { DisplayFrame, IssueLevel, SourceLine } from '#self/shared/contracts'
 
 /** Refused before parsing. Well past any real event; the SDK's own cap is 60 kB. */
 export const MAX_EVENT_BYTES = 200 * 1024

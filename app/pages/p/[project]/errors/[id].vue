@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { errorMessage, formatAge, formatCount, plural } from '#nexitas/app/lib/format'
-import type { DisplayFrame, IssueDetail, IssueStatus } from '../../../../../shared/contracts'
-import { issuesKey, levelTones } from '../../../../lib/issues'
+import type { DisplayFrame, IssueDetail, IssueStatus } from '#self/shared/contracts'
+import { issuesKey, levelTones } from '#self/app/lib/issues'
 
 // One issue at its own address, which is what people paste to each other: the list, with the
 // issue in the inspector (what to do about it, where it happens, its stack trace).
