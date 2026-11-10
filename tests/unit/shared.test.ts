@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 // From source, not the built package, so this needs no build first.
-import { ingestUrl, parseDsn } from '../../packages/sdk/src/dsn'
-import { parseSearchQuery, setSearchToken } from '../../shared/issues'
-import { buildDsn, buildIngestUrl, snippetFor, testEventCommand } from '../../shared/setup'
+import { ingestUrl, parseDsn } from '#self/packages/sdk/src/dsn'
+import { parseSearchQuery, setSearchToken } from '#self/shared/issues'
+import { buildDsn, buildIngestUrl, snippetFor, testEventCommand } from '#self/shared/setup'
 
 describe('search', () => {
   it('splits tags from free text, lower-casing both', () => {

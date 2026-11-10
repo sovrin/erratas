@@ -9,8 +9,8 @@ import type {
   IssuesPage,
   IssueStatus,
   Stack,
-} from '../../shared/contracts'
-import { PREFIX_MATCHED, type SearchQuery } from '../../shared/issues'
+} from '#self/shared/contracts'
+import { PREFIX_MATCHED, type SearchQuery } from '#self/shared/issues'
 import { fingerprintOf, type IngestEvent } from './ingest'
 
 const newId = (bytes: number) => randomBytes(bytes).toString('hex')

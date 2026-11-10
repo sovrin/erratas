@@ -2,9 +2,9 @@ import { announceChange } from '#nexitas/server/utils/changes'
 import { invalid } from '#nexitas/server/utils/invalid'
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
 import { requestProject } from '#nexitas/server/utils/projects'
-import { issueStatusSchema } from '../../../../../../shared/contracts'
-import { getIssue, setIssueStatus } from '../../../../../core/issues'
-import { routeIssue } from '../../../../../utils/erratas'
+import { issueStatusSchema } from '#self/shared/contracts'
+import { getIssue, setIssueStatus } from '#self/server/core/issues'
+import { routeIssue } from '#self/server/utils/erratas'
 
 /** Resolves, ignores or reopens an issue. */
 export default defineEventHandler(async (event) => {
