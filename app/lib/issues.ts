@@ -1,4 +1,4 @@
-import type { IssueLevel } from '../../shared/contracts'
+import type { IssueLevel } from '#self/shared/contracts'
 
 /** The marker's tone for an open issue of each level. */
 export const levelTones: Record<IssueLevel, 'danger' | 'warning' | 'info'> = {

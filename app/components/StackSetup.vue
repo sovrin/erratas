@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { errorMessage } from '#nexitas/app/lib/format'
-import type { Stack } from '../../shared/contracts'
-import { buildDsn, buildIngestUrl, snippetFor, testEventCommand } from '../../shared/setup'
+import type { Stack } from '#self/shared/contracts'
+import { buildDsn, buildIngestUrl, snippetFor, testEventCommand } from '#self/shared/setup'
 
 /** <StackSetup :stacks @changed="refresh" />
  *  erratas' setup: the project's stacks, each with the DSN and snippet its app reports with, and a

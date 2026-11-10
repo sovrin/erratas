@@ -1,9 +1,9 @@
 import { createLimiter } from '#nexitas/server/core/limits'
 import { tokensMatch } from '#nexitas/server/core/auth'
 import { nexitasDatabase, requestSender } from '#nexitas/server/utils/nexitas'
-import { IngestError, parseEvent } from '../../../core/ingest'
-import { getStack, recordEvent } from '../../../core/issues'
-import { announceReport } from '../../../utils/erratas'
+import { IngestError, parseEvent } from '#self/server/core/ingest'
+import { getStack, recordEvent } from '#self/server/core/issues'
+import { announceReport } from '#self/server/utils/erratas'
 
 // The SDK caps itself at 30 a minute; a sender past twice that is not an app in a crash loop but
 // someone filling the disk with a public key.
