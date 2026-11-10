@@ -1,7 +1,7 @@
 import { announceChange } from '#nexitas/server/utils/changes'
 import { nexitasDatabase } from '#nexitas/server/utils/nexitas'
 import { requestProject } from '#nexitas/server/utils/projects'
-import { deleteStack } from '../../../../../../core/issues'
+import { deleteStack } from '#self/server/core/issues'
 
 /** Deletes a stack and its issues; apps reporting with its DSN get a 401 from then on. */
 export default defineEventHandler((event) => {

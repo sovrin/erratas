@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { formatAge, formatCount, plural } from '#nexitas/app/lib/format'
-import type { IssuesPage, Stack } from '../../shared/contracts'
-import { ISSUES_PER_PAGE, SEARCH_KEYS, parseSearchQuery } from '../../shared/issues'
-import { issuesKey, levelTones } from '../lib/issues'
+import type { IssuesPage, Stack } from '#self/shared/contracts'
+import { ISSUES_PER_PAGE, SEARCH_KEYS, parseSearchQuery } from '#self/shared/issues'
+import { issuesKey, levelTones } from '#self/app/lib/issues'
 
 /** <IssueBoard :selected="id"><template #aside>…</template></IssueBoard>
  *  The project's issues, as the list page and an issue's page both show them: the issue's page is

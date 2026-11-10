@@ -11,7 +11,7 @@ import {
   fingerprintOf,
   normaliseFilename,
   parseEvent,
-} from '../../server/core/ingest'
+} from '#self/server/core/ingest'
 import {
   countUnresolved,
   createStack,
@@ -21,9 +21,9 @@ import {
   issuesPage,
   recordEvent,
   setIssueStatus,
-} from '../../server/core/issues'
-import { erratas } from '../../server/core/module'
-import { parseSearchQuery } from '../../shared/issues'
+} from '#self/server/core/issues'
+import { erratas } from '#self/server/core/module'
+import { parseSearchQuery } from '#self/shared/issues'
 
 const NOW = Date.parse('2026-08-18T12:00:00.000Z')
 const HOUR = 60 * 60 * 1000
